@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-100 text-slate-800">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Emploi du Temps Quotidien • Urgences Stagiaires</title>
+  <meta name="description" content="Emploi du temps et rotation journalière des étudiants stagiaires en soins infirmiers aux urgences hospitalières.">
+  <meta name="theme-color" content="#1e293b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+
+  <!-- Favicon SVG Médical -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 rx=%2220%22 fill=%22%230284c7%22/><path d=%22M50 20 v60 M20 50 h60%22 stroke=%22white%22 stroke-width=%2216%22 stroke-linecap=%22round%22/></svg>">
+
+  <!-- Google Font : Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Supabase JS Client v2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    body {
+      -webkit-tap-highlight-color: transparent;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    }
+
+    /* Style du tableau d'emploi du temps */
+    .timetable-table th, .timetable-table td {
+      border: 1px solid #e2e8f0;
+    }
+
+    /* Colonne fixe pour les noms d'étudiants sur mobile */
+    .sticky-col {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background-color: #ffffff;
+      box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.08);
+    }
+    th.sticky-col {
+      z-index: 20;
+      background-color: #f8fafc;
+    }
+
+    /* Highlight survol ligne */
+    .timetable-row:hover td {
+      background-color: #f8fafc;
+    }
+    .timetable-row.highlighted td {
+      background-color: #fef08a !important; /* Jaune surlignage */
+    }
+    .timetable-row.highlighted .sticky-col {
+      background-color: #fef08a !important;
+      font-weight: 800;
+    }
+
+    /* Colonne Aujourd'hui mise en avant */
+    .col-today {
+      background-color: #eff6ff !important;
+    }
+  </style>
+</head>
+<body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-100">
+
+  <!-- ========================================================================= -->
+  <!-- EN-TÊTE PRINCIPAL                                                         -->
+  <!-- ========================================================================= -->
+  <header class="sticky top-0 z-30 bg-white border-b border-slate-300 shadow-xs">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between">
+      
+      <!-- Titre & Service -->
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-blue-700 flex items-center justify-center text-white font-extrabold text-xl shadow-xs">
+          📅
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-black tracking-tight text-slate-900 leading-tight">
+            Emploi du Temps • Urgences
+          </h1>
+          <p class="text-[11px] font-semibold text-slate-500">
+            Rotation <strong class="text-blue-700">quotidienne (tous les jours)</strong> des stagiaires
+          </p>
+        </div>
+      </div>
+
+      <!-- Actions de droite : Statut, Partage WhatsApp, Paramètres, Admin -->
+      <div class="flex items-center gap-2">
+        <!-- Statut Supabase / Démo -->
+        <button id="status-pill" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition" title="Statut de connexion">
+          <span class="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+          <span class="hidden sm:inline">Chargement...</span>
+        </button>
+
+        <!-- Bouton WhatsApp -->
+        <button id="btn-share-whatsapp" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95" title="Copier pour WhatsApp">
+          <span class="text-sm">📱</span>
+          <span class="hidden sm:inline">WhatsApp</span>
+        </button>
+
+        <!-- Paramètres Supabase -->
+        <button id="btn-open-config" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition" title="Configuration Supabase">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+        </button>
+
+        <!-- Admin (Cadenas) -->
+        <button id="btn-open-admin" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition" title="Administration des présences">
+          <span class="text-amber-400 text-xs">🔒</span>
+          <span class="hidden sm:inline">Admin</span>
+        </button>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ========================================================================= -->
+  <!-- CONTENU PRINCIPAL                                                         -->
+  <!-- ========================================================================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-4">
+
+    <!-- BANDEAU SEMAINE, RECHERCHE ET SÉLECTION D'AFFICHAGE -->
+    <div class="bg-white rounded-2xl p-3 sm:p-4 border border-slate-300 shadow-xs space-y-3">
+      
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <!-- Date de la semaine -->
+        <div class="flex items-center gap-3">
+          <div class="p-2.5 bg-blue-50 text-blue-700 rounded-xl font-bold text-lg hidden sm:block">
+            🗓️
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span id="week-badge" class="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
+                Semaine en cours
+              </span>
+              <span class="text-xs text-slate-500 font-bold">• Rotation quotidienne (7j/7)</span>
+            </div>
+            <h2 id="week-title" class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+              Chargement des dates...
+            </h2>
+          </div>
+        </div>
+
+        <!-- Navigation de semaine en semaine -->
+        <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto border border-slate-200">
+          <button id="btn-week-prev" class="px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-white text-xs font-bold transition flex items-center gap-1">
+            <span>‹</span> Semaine préc.
+          </button>
+          <button id="btn-week-today" class="px-3 py-1.5 rounded-lg bg-white text-slate-900 text-xs font-black shadow-xs transition">
+            Aujourd'hui
+          </button>
+          <button id="btn-week-next" class="px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-white text-xs font-bold transition flex items-center gap-1">
+            Semaine suiv. <span>›</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Barre de recherche rapide de stagiaire -->
+      <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
+        <div class="relative w-full sm:flex-1">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+            🔍
+          </div>
+          <input 
+            type="text" 
+            id="student-search-input" 
+            placeholder="Tape ton prénom pour repérer ta ligne sur la semaine (ex: Camille, Thomas...)" 
+            class="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+          >
+          <button id="btn-clear-search" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 hidden">
+            ✕
+          </button>
+        </div>
+      </div>
+
+      <!-- Bandeau d'information personnalisée si recherche active -->
+      <div id="my-assignment-banner" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex flex-wrap items-center justify-between gap-2">
+        <!-- Rempli par app.js -->
+      </div>
+
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- GRAND TABLEAU D'EMPLOI DU TEMPS AVEC TOUS LES JOURS (LUN-DIM)            -->
+    <!-- ======================================================================= -->
+    <div id="view-timetable" class="space-y-3">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+          <span>📊</span> Emploi du Temps Quotidien de la Semaine
+        </h3>
+        <span class="text-xs text-slate-500 font-semibold">
+          <strong id="count-active-students" class="text-slate-900">12</strong> stagiaires actifs • Rotation chaque jour
+        </span>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-300 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse timetable-table text-xs">
+            <thead>
+              <tr class="bg-slate-100 text-slate-900 font-black uppercase text-center" id="timetable-header-row">
+                <!-- Colonne Étudiant (Fixe à gauche) -->
+                <th class="p-3 sticky-col text-left min-w-[170px] bg-slate-100 border-b-2 border-slate-300">
+                  Étudiant Stagiaire
+                </th>
+                <!-- 7 Colonnes générées dynamiquement (LUN, MAR, MER, JEU, VEN, SAM, DIM avec dates) -->
+              </tr>
+            </thead>
+            <tbody id="timetable-body" class="divide-y divide-slate-200">
+              <!-- Rempli dynamiquement ligne par ligne -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- LÉGENDE DES COULEURS DES SALLES (TOUJOURS VISIBLE) -->
+    <div class="bg-white rounded-2xl p-3 border border-slate-300 shadow-xs flex flex-wrap items-center justify-around gap-2 text-xs font-bold">
+      <div class="flex items-center gap-1.5 text-blue-800">
+        <span class="w-3 h-3 rounded-full bg-blue-600"></span>
+        <span>🔵 Triage (Accueil & Tri)</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-emerald-800">
+        <span class="w-3 h-3 rounded-full bg-emerald-600"></span>
+        <span>🟢 Piquage (VVP, Bilans, Soins)</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-rose-800">
+        <span class="w-3 h-3 rounded-full bg-rose-600"></span>
+        <span>🔴 Déchocage (SAUV / Vital)</span>
+      </div>
+      <div class="flex items-center gap-1.5 text-purple-800">
+        <span class="w-3 h-3 rounded-full bg-purple-600"></span>
+        <span>🟣 Observation (Surveillance UHCD)</span>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ========================================================================= -->
+  <!-- PIED DE PAGE                                                              -->
+  <!-- ========================================================================= -->
+  <footer class="mt-auto border-t border-slate-300 bg-white py-4 text-center text-xs text-slate-500 font-medium">
+    Emploi du temps des urgences • Rotation quotidienne automatique chaque jour à 00h00
+  </footer>
+
+  <!-- ========================================================================= -->
+  <!-- MODALE : CHOIX COPIE WHATSAPP (AUJOURD'HUI OU SEMAINE COMPLÈTE)           -->
+  <!-- ========================================================================= -->
+  <div id="whatsapp-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs hidden">
+    <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 relative">
+      <button data-close-modal="whatsapp-modal" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 rounded-full">
+        ✕
+      </button>
+
+      <div class="flex items-center gap-2.5 mb-3">
+        <span class="text-2xl">📱</span>
+        <div>
+          <h3 class="text-base font-black text-slate-900">Copier le planning pour WhatsApp</h3>
+          <p class="text-xs text-slate-500">Choisissez le format que vous souhaitez partager :</p>
+        </div>
+      </div>
+
+      <div class="space-y-3 my-4">
+        <button id="btn-copy-wa-today" class="w-full p-3.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-2xl text-left transition flex items-center justify-between">
+          <div>
+            <div class="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+              <span>📍</span> Planning d'Aujourd'hui
+            </div>
+            <div class="text-[11px] text-emerald-700 mt-0.5">La répartition des 4 salles pour la journée en cours</div>
+          </div>
+          <span class="text-xs font-bold px-2 py-1 bg-emerald-600 text-white rounded-lg">Copier</span>
+        </button>
+
+        <button id="btn-copy-wa-week" class="w-full p-3.5 bg-blue-50 hover:bg-blue-100 border border-blue-300 rounded-2xl text-left transition flex items-center justify-between">
+          <div>
+            <div class="text-xs font-black text-blue-900 flex items-center gap-1.5">
+              <span>🗓️</span> Planning de toute la Semaine
+            </div>
+            <div class="text-[11px] text-blue-700 mt-0.5">Le récapitulatif jour par jour (Lundi à Dimanche)</div>
+          </div>
+          <span class="text-xs font-bold px-2 py-1 bg-blue-600 text-white rounded-lg">Copier</span>
+        </button>
+      </div>
+
+      <div class="pt-2 border-t border-slate-100 text-center">
+        <button data-close-modal="whatsapp-modal" class="text-xs font-bold text-slate-500 hover:text-slate-700">
+          Fermer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODALE : CODE PIN ADMIN (1234)                                            -->
+  <!-- ========================================================================= -->
+  <div id="pin-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs hidden">
+    <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100 text-center relative">
+      <button data-close-modal="pin-modal" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 rounded-full">
+        ✕
+      </button>
+
+      <div class="w-12 h-12 bg-amber-100 text-amber-700 rounded-2xl flex items-center justify-center mx-auto mb-3 text-xl font-bold">
+        🔒
+      </div>
+
+      <h3 class="text-base font-black text-slate-900">Accès Administrateur / Tuteur</h3>
+      <p class="text-xs text-slate-500 mt-1 mb-4">
+        Saisissez le code PIN pour gérer les présences (par défaut : <strong>1234</strong>).
+      </p>
+
+      <form id="pin-form" class="space-y-3">
+        <input 
+          type="password" 
+          id="pin-input" 
+          maxlength="8" 
+          inputmode="numeric" 
+          placeholder="Code PIN" 
+          class="w-full text-center text-2xl font-mono tracking-widest bg-slate-50 border border-slate-300 rounded-xl py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+          required 
+          autofocus
+        >
+        <p id="pin-error-msg" class="text-xs text-rose-600 font-semibold hidden"></p>
+        <button type="submit" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition">
+          Déverrouiller
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODALE : PANEL ADMIN (TOGGLES PRÉSENCES & AJOUT)                           -->
+  <!-- ========================================================================= -->
+  <div id="admin-modal" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs hidden">
+    <div class="bg-white w-full max-w-2xl max-h-[92vh] rounded-3xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden">
+      
+      <div class="p-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="text-2xl">⚡</span>
+          <div>
+            <h3 class="text-base font-black text-slate-900">Gestion des Présences & Stagiaires</h3>
+            <p class="text-xs text-slate-500">Désactivez un étudiant en cas d'absence : le tableau quotidien se rééquilibre en direct.</p>
+          </div>
+        </div>
+        <button data-close-modal="admin-modal" class="text-slate-400 hover:text-slate-700 p-2 rounded-full">
+          ✕
+        </button>
+      </div>
+
+      <div class="p-4 sm:p-6 overflow-y-auto space-y-5 flex-1">
+        <!-- Ajout rapide -->
+        <div class="bg-blue-50/70 border border-blue-200 rounded-2xl p-3.5">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-blue-900 mb-2">
+            ➕ Ajouter un stagiaire
+          </h4>
+          <form id="admin-add-form" class="flex gap-2">
+            <input 
+              type="text" 
+              id="admin-new-name-input" 
+              placeholder="Prénom et NOM de l'étudiant" 
+              class="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" 
+              required
+            >
+            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition">
+              Ajouter
+            </button>
+          </form>
+        </div>
+
+        <!-- Liste des présences -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">
+              Liste des étudiants (<span id="admin-count-total">0</span>)
+            </h4>
+            <div class="flex items-center gap-1 text-[11px] font-bold">
+              <span class="text-emerald-700"><span id="admin-count-active">0</span> actifs</span> • 
+              <span class="text-slate-500"><span id="admin-count-inactive">0</span> absents</span>
+            </div>
+          </div>
+          <div id="admin-stagiaires-list" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+            <!-- Rempli par app.js -->
+          </div>
+        </div>
+
+        <!-- Date de référence -->
+        <div class="border-t border-slate-200 pt-4">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+            Date de référence du stage (Premier Lundi)
+          </h4>
+          <p class="text-xs text-slate-500 mb-2">Sert de point d'ancrage pour synchroniser le cycle journalier.</p>
+          <div class="flex items-center gap-2 max-w-sm">
+            <input type="date" id="admin-start-date-input" class="bg-slate-50 border border-slate-300 rounded-xl px-3 py-1.5 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 flex-1">
+            <button id="admin-save-start-date" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition">
+              Enregistrer
+            </button>
+          </div>
+        </div>
+
+        <!-- Outil de test & simulation du changement de jour -->
+        <div class="border-t border-slate-200 pt-4 bg-slate-50 p-3 rounded-xl">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+            🧪 Tester le passage au jour suivant (Démonstration)
+          </h4>
+          <p class="text-[11px] text-slate-500 mb-2.5">
+            Cliquez pour voir la colonne bleue "Aujourd'hui" et les affectations bouger comme lors du passage à minuit :
+          </p>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button type="button" id="btn-sim-today" class="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 rounded-lg text-xs font-bold transition">
+              Aujourd'hui (Temps Réel)
+            </button>
+            <button type="button" id="btn-sim-tomorrow" class="px-3 py-1.5 bg-blue-50 border border-blue-300 text-blue-800 hover:bg-blue-100 rounded-lg text-xs font-bold transition">
+              Simuler Demain (+1j)
+            </button>
+            <button type="button" id="btn-sim-dayafter" class="px-3 py-1.5 bg-indigo-50 border border-indigo-300 text-indigo-800 hover:bg-indigo-100 rounded-lg text-xs font-bold transition">
+              Simuler +2 Jours
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 border-t border-slate-200 bg-white flex justify-end shrink-0">
+        <button data-close-modal="admin-modal" class="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition">
+          Fermer
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODALE : CONFIGURATION SUPABASE                                           -->
+  <!-- ========================================================================= -->
+  <div id="config-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs hidden">
+    <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 relative">
+      <button data-close-modal="config-modal" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-2 rounded-full">
+        ✕
+      </button>
+
+      <h3 class="text-base font-black text-slate-900 mb-1">Connexion Base Supabase</h3>
+      <p class="text-xs text-slate-500 mb-4">Pour synchroniser le planning quotidien sur tous les smartphones.</p>
+
+      <form id="supabase-config-form" class="space-y-3">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Supabase URL</label>
+          <input type="url" id="cfg-supabase-url" placeholder="https://xyz.supabase.co" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Supabase Anon Key</label>
+          <textarea id="cfg-supabase-key" rows="3" placeholder="eyJhbGciOiJIUzI1..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono"></textarea>
+        </div>
+
+        <div class="pt-2 flex items-center justify-between gap-2 border-t border-slate-100">
+          <button type="button" id="btn-switch-demo" class="text-xs text-amber-700 underline font-semibold">
+            Mode Démo Local
+          </button>
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-xs">
+            Sauvegarder
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- TOASTS DE NOTIFICATION -->
+  <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
+
+  <!-- Scripts -->
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
