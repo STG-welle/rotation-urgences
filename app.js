@@ -411,7 +411,7 @@
 
     if (badge) {
       if (state.simulatedDayOffset !== 0) {
-        badge.innerHTML = `🧪 Simulation : +${state.simulatedDayOffset}j <span class="underline ml-1 font-black">(Revenir au réel)</span>`;
+        badge.innerHTML = `<span class="inline-flex items-center gap-1"><svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Mode Test : +${state.simulatedDayOffset}j</span> <span class="underline ml-1 font-black">(Revenir au réel)</span>`;
         badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-500 text-white shadow-xs cursor-pointer';
         badge.onclick = () => {
           state.simulatedDayOffset = 0;
@@ -471,7 +471,7 @@
         banner.classList.remove('hidden');
         banner.innerHTML = `
           <div class="flex items-center gap-2">
-            <span>⏸️</span>
+            <span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-200 text-slate-700 uppercase tracking-wider">Absent</span>
             <span><strong>${escapeHtml(found.nom)}</strong> est actuellement noté(e) <strong>absent(e)</strong>.</span>
           </div>
         `;
@@ -499,15 +499,19 @@
 
       let tomorrowText = '';
       if (isTomorrowWeekend) {
-        tomorrowText = `⏭️ Demain (${dayNameTomorrow}) : <span class="font-black text-slate-600">⚪ R.A.S (Week-end)</span>`;
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-600">⚪ R.A.S (Week-end)</span>`;
       } else {
-        tomorrowText = `⏭️ Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span>`;
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span>`;
       }
 
       banner.classList.remove('hidden');
       banner.innerHTML = `
-        <div class="flex items-center gap-2">
-          <span class="text-xl shrink-0">${isTodayWeekend ? '🏖️' : '📍'}</span>
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl ${isTodayWeekend ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white'} flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          </div>
           <div class="leading-snug">
             <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)}</span> :
             ${schedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
@@ -634,14 +638,19 @@
     // 3. Grille des 4 cartes ou message Week-end
     if (activeDay.isWeekend) {
       cardsGrid.innerHTML = `
-        <div class="col-span-full bg-gradient-to-br from-slate-50 to-slate-100 rounded-3xl p-6 sm:p-8 text-center border-2 border-dashed border-slate-300 shadow-xs">
-          <span class="text-4xl sm:text-5xl mb-3 block">🏖️</span>
-          <h3 class="text-base sm:text-lg font-black text-slate-900">Week-end • Repos Général (R.A.S)</h3>
+        <div class="col-span-full bg-white rounded-3xl p-6 sm:p-8 text-center border border-slate-300 shadow-xs">
+          <div class="w-12 h-12 sm:w-14 sm:h-14 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-slate-200">
+            <svg class="w-6 h-6 sm:w-7 sm:h-7 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+            </svg>
+          </div>
+          <h3 class="text-base sm:text-lg font-black text-slate-900">Week-end • Repos de Service (R.A.S)</h3>
           <p class="text-xs sm:text-sm text-slate-600 max-w-md mx-auto mt-1 font-medium">
             Aucun étudiant stagiaire n'est de garde le samedi et le dimanche.
           </p>
-          <div class="inline-flex items-center gap-1.5 mt-4 px-3.5 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 text-xs font-bold shadow-2xs">
-            <span>⚪</span> Reprise automatique de la rotation le <strong>Lundi matin à 00h00</strong>
+          <div class="inline-flex items-center gap-2 mt-4 px-3.5 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span>Reprise de la rotation le <strong>Lundi matin à 00h00</strong></span>
           </div>
         </div>
       `;
@@ -651,9 +660,13 @@
     if (state.stagiaires.length === 0) {
       cardsGrid.innerHTML = `
         <div class="col-span-full bg-white rounded-3xl p-8 text-center border border-slate-300 shadow-xs">
-          <span class="text-4xl mb-2 block">👥</span>
-          <h3 class="text-base font-black text-slate-900">Aucun stagiaire dans la base pour le moment</h3>
-          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">🔒 Admin</strong> en haut à droite pour ajouter vos collègues.</p>
+          <div class="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-slate-200">
+            <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+            </svg>
+          </div>
+          <h3 class="text-base font-black text-slate-900">Aucun stagiaire dans la base de données</h3>
+          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> en haut à droite pour ajouter vos collègues.</p>
         </div>
       `;
       return;
@@ -690,7 +703,7 @@
                     ${escapeHtml(student.nom)}
                   </span>
                 </div>
-                ${isMatch ? '<span class="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.5 rounded">C\'est toi !</span>' : ''}
+                ${isMatch ? '<span class="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">Votre poste</span>' : ''}
               </div>
             `;
           })
@@ -731,8 +744,8 @@
           </div>
 
           <!-- Rôle & Soins -->
-          <div class="mt-3 pt-2.5 border-t border-slate-100 text-[10px] text-slate-400 leading-tight">
-            🩺 <strong class="text-slate-600">Missions :</strong> ${room.roleInfo}
+          <div class="mt-3 pt-2.5 border-t border-slate-100 text-[10px] text-slate-500 leading-tight">
+            <strong class="text-slate-700">Rôle :</strong> ${room.roleInfo}
           </div>
         </div>
       `;
@@ -793,9 +806,13 @@
         <tr>
           <td colspan="8" class="p-8 text-center text-xs text-slate-500 font-semibold bg-slate-50/50">
             <div class="max-w-md mx-auto space-y-2">
-              <span class="text-3xl">👥</span>
-              <p class="font-bold text-slate-700 text-sm">Aucun stagiaire dans la base pour le moment.</p>
-              <p class="text-xs text-slate-500">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">🔒 Admin</strong> en haut à droite pour ajouter vos collègues.</p>
+              <div class="w-10 h-10 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                </svg>
+              </div>
+              <p class="font-bold text-slate-700 text-sm">Aucun stagiaire dans la base de données.</p>
+              <p class="text-xs text-slate-500">Accédez à l'espace <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> pour configurer la liste des étudiants.</p>
             </div>
           </td>
         </tr>
@@ -814,7 +831,7 @@
           <tr class="timetable-row ${isMatch ? 'highlighted' : ''} bg-slate-50/70 opacity-60">
             <td class="p-2 sm:p-2.5 sticky-col font-medium text-xs text-slate-500">
               <div class="flex items-center gap-1.5 truncate">
-                <span>⏸️</span>
+                <span class="w-2 h-2 rounded-full bg-slate-400 shrink-0"></span>
                 <span class="line-through truncate">${escapeHtml(student.nom)}</span>
                 <span class="text-[8px] bg-slate-200 text-slate-600 px-1 py-0.2 rounded font-bold shrink-0">Absent</span>
               </div>
@@ -924,7 +941,7 @@
           <div>
             <div class="text-xs sm:text-sm font-bold text-slate-900">${escapeHtml(s.nom)}</div>
             <div class="text-[10px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold">
-              ${s.actif ? '✓ Présent (en rotation)' : '⏸️ Absent (exclu du planning)'}
+              ${s.actif ? 'Présent • En rotation active' : 'Absent • Exclu temporairement'}
             </div>
           </div>
         </div>
@@ -937,8 +954,10 @@
           </label>
 
           <!-- Supprimer -->
-          <button data-admin-delete="${s.id}" data-name="${escapeHtml(s.nom)}" class="p-1.5 text-slate-400 hover:text-rose-600 rounded transition" title="Supprimer">
-            🗑️
+          <button data-admin-delete="${s.id}" data-name="${escapeHtml(s.nom)}" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Supprimer">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
           </button>
         </div>
       </div>
@@ -1245,7 +1264,7 @@
       state.simulatedDayOffset = 0;
       initCurrentDayIndex();
       render();
-      showToast('Retour à la date réelle d\'aujourd\'hui', 'info');
+      showToast('Date réelle rétablie', 'info');
       closeModal('admin-modal');
     });
 
@@ -1253,7 +1272,7 @@
       state.simulatedDayOffset = 1;
       initCurrentDayIndex();
       render();
-      showToast('Simulation : Vous êtes demain ! La colonne a bougé.', 'success');
+      showToast('Simulation active : +1 jour', 'success');
       closeModal('admin-modal');
     });
 
@@ -1261,7 +1280,7 @@
       state.simulatedDayOffset = 2;
       initCurrentDayIndex();
       render();
-      showToast('Simulation : Vous êtes après-demain !', 'success');
+      showToast('Simulation active : +2 jours', 'success');
       closeModal('admin-modal');
     });
 
