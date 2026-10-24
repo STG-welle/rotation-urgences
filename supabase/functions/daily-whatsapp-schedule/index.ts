@@ -379,14 +379,40 @@ serve(async (req: Request) => {
       try {
         whatsappSendResult = await sendToWhatsAppGateway(whatsappMessage);
       } catch (sendErr) {
-        // En cas d'erreur réseau sur la passerelle, on libère le verrou pour permettre un retry
-        if (!bodyParams.force) {
-          await supabase.from("whatsapp_dispatch_history").delete().eq("dispatch_date", dateKey);
-        }
-        throw sendErr;
+        const errMsg = (sendErr as Error).message || String(sendErr);
+        console.error("[ÉCHEC ENVOI WHATSAPP]", errMsg);
+
+        // En cas d'erreur de passerelle ou de déconnexion notAuthorized :
+        // Le message est mis en statut "failed_retry" dans Supabase (ni perdu, ni faussement marqué comme envoyé !)
+        await supabase
+          .from("whatsapp_dispatch_history")
+          .upsert({
+            dispatch_date: dateKey,
+            message_text: whatsappMessage,
+            status: "failed_retry",
+            error_message: errMsg,
+            source: bodyParams.source || "pg_cron_daily",
+            sent_at: new Date().toISOString()
+          }, { onConflict: "dispatch_date" });
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            status: "failed_retry",
+            error: errMsg,
+            reconnectQrUrl: `${supabaseUrl}/functions/v1/green-api-webhook?action=qr`
+          }, null, 2),
+          {
+            status: 503,
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          }
+        );
       }
 
-      // 3. Finalisation : Enregistrement du résultat réel et du message formaté
+      // 3. Finalisation après succès réel
       try {
         const msgId = (whatsappSendResult.response as Record<string, unknown>)?.idMessage || null;
         await supabase
@@ -397,6 +423,8 @@ serve(async (req: Request) => {
             whatsapp_message_id: msgId ? String(msgId) : null,
             gateway: String(whatsappSendResult.gateway || "unknown"),
             source: bodyParams.source || "pg_cron_daily",
+            status: "sent",
+            error_message: null,
             sent_at: new Date().toISOString()
           }, { onConflict: "dispatch_date" });
       } catch (logErr) {
@@ -781,6 +809,24 @@ async function sendToWhatsAppGateway(message: string): Promise<Record<string, un
 
   if (greenInstanceId && greenApiToken && whatsappChatId) {
     const greenHost = (Deno.env.get("GREEN_API_HOST") || "https://7107.api.greenapi.com").replace(/\/+$/, "");
+
+    // 1. Contrôle pré-vol (Pre-flight check) : Vérification que l'instance est connectée et autorisée
+    try {
+      const stateUrl = `${greenHost}/waInstance${greenInstanceId}/getStateInstance/${greenApiToken}`;
+      const stateRes = await fetch(stateUrl);
+      const stateJson = await stateRes.json();
+      if (stateJson.stateInstance !== "authorized") {
+        throw new Error(`Instance Green API non connectée (statut : ${stateJson.stateInstance || "inconnu"}). Envoi WhatsApp suspendu pour éviter la perte de message.`);
+      }
+    } catch (stateErr) {
+      console.warn("Échec du contrôle pré-vol Green API :", stateErr);
+      throw stateErr;
+    }
+
+    // 2. Temporisation de sécurité anti-spam (3,5 secondes de pause avant envoi)
+    await new Promise((resolve) => setTimeout(resolve, 3500));
+
+    // 3. Envoi du message WhatsApp via Green API
     const url = `${greenHost}/waInstance${greenInstanceId}/sendMessage/${greenApiToken}`;
     const res = await fetch(url, {
       method: "POST",
@@ -791,7 +837,10 @@ async function sendToWhatsAppGateway(message: string): Promise<Record<string, un
       })
     });
     const data = await res.json();
-    return { gateway: "Green API", ok: res.ok, response: data };
+    if (!res.ok) {
+      throw new Error(`Erreur Green API (HTTP ${res.status}): ${JSON.stringify(data)}`);
+    }
+    return { gateway: "Green API", ok: true, response: data };
   }
 
   // Option B : Evolution API (https://evolution-api.com)

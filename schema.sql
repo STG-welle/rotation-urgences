@@ -42,16 +42,43 @@ create table if not exists public.whatsapp_dispatch_history (
     whatsapp_message_id text,
     gateway text default 'unknown',
     source text default 'pg_cron_daily',
+    status text default 'sent', -- 'sent', 'failed_retry', 'in_progress'
+    error_message text,
     sent_at timestamptz not null default now(),
     constraint whatsapp_dispatch_history_date_unique unique (dispatch_date)
 );
 
--- 4. Configuration de la Sécurité Row Level Security (RLS)
+-- 4. Table d'État de l'Instance WhatsApp (Monitoring & QR Code)
+create table if not exists public.whatsapp_instance_status (
+    id int primary key default 1,
+    instance_id text,
+    state_instance text not null default 'unknown',
+    is_connected boolean not null default false,
+    last_qr_code text,
+    last_disconnected_at timestamptz,
+    last_connected_at timestamptz,
+    alert_active boolean not null default false,
+    updated_at timestamptz not null default now()
+);
+
+-- 5. Table d'Historique des Alertes WhatsApp
+create table if not exists public.whatsapp_alerts (
+    id serial primary key,
+    event_type text not null, -- 'disconnected', 'reconnected', 'send_blocked'
+    state_instance text not null,
+    message text not null,
+    qr_code_available boolean default false,
+    created_at timestamptz not null default now()
+);
+
+-- 6. Configuration de la Sécurité Row Level Security (RLS)
 -- Pour permettre à l'application web statique (GitHub Pages) de lire et mettre à jour
 -- les données via la clé anonyme (anon key) sans exiger de compte utilisateur individuel :
 alter table public.stagiaires enable row level security;
 alter table public.config enable row level security;
 alter table public.whatsapp_dispatch_history enable row level security;
+alter table public.whatsapp_instance_status enable row level security;
+alter table public.whatsapp_alerts enable row level security;
 
 drop policy if exists "Accès complet stagiaires" on public.stagiaires;
 create policy "Accès complet stagiaires" on public.stagiaires
@@ -63,6 +90,14 @@ create policy "Accès complet config" on public.config
 
 drop policy if exists "Accès complet whatsapp_dispatch_history" on public.whatsapp_dispatch_history;
 create policy "Accès complet whatsapp_dispatch_history" on public.whatsapp_dispatch_history
+    for all using (true) with check (true);
+
+drop policy if exists "Accès complet whatsapp_instance_status" on public.whatsapp_instance_status;
+create policy "Accès complet whatsapp_instance_status" on public.whatsapp_instance_status
+    for all using (true) with check (true);
+
+drop policy if exists "Accès complet whatsapp_alerts" on public.whatsapp_alerts;
+create policy "Accès complet whatsapp_alerts" on public.whatsapp_alerts
     for all using (true) with check (true);
 
 -- 5. Activation de Supabase Realtime (Indispensable pour la synchro en direct)

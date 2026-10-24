@@ -1,0 +1,341 @@
+/**
+ * Supabase Edge Function : green-api-webhook
+ * ==============================================================================
+ * Système de Monitoring, Détection de Déconnexion & Alerte Immédiate pour Green API
+ *
+ * Écoute les webhooks de Green API, notamment l'événement "stateInstanceChanged".
+ * Détecte les statuts critiques ("notAuthorized", "blocked", "sleepMode"),
+ * récupère automatiquement le QR Code de reconnexion, met à jour la base Supabase
+ * et déclenche une alerte immédiate vers l'administrateur.
+ * ==============================================================================
+ */
+
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
+};
+
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: CORS_HEADERS });
+  }
+
+  const url = new URL(req.url);
+  const action = url.searchParams.get("action");
+
+  // Configuration Supabase & Green API
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const greenInstanceId = Deno.env.get("GREEN_API_INSTANCE_ID") || "";
+  const greenApiToken = Deno.env.get("GREEN_API_TOKEN") || "";
+  const greenHost = (Deno.env.get("GREEN_API_HOST") || "https://7107.api.greenapi.com").replace(/\/+$/, "");
+  const adminEmail = Deno.env.get("ADMIN_ALERT_EMAIL") || "";
+  const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+  const alertWebhookUrl = Deno.env.get("ALERT_WEBHOOK_URL") || "";
+
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  // ============================================================================
+  // 1. ENDPOINT GET : Visualisation Live du QR Code ou Statut
+  // ============================================================================
+  if (req.method === "GET") {
+    // A. Page HTML d'affichage direct du QR Code pour scan rapide
+    if (action === "qr") {
+      let qrImageSrc = "";
+      let qrStatusText = "Récupération du QR code...";
+      let isAlreadyLogged = false;
+
+      if (greenInstanceId && greenApiToken) {
+        try {
+          const qrResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/qr/${greenApiToken}`);
+          const qrData = await qrResp.json();
+          if (qrData.type === "alreadyLogged") {
+            isAlreadyLogged = true;
+            qrStatusText = "Instance WhatsApp déjà connectée et autorisée !";
+          } else if (qrData.type === "qrCode" && qrData.message) {
+            qrImageSrc = qrData.message.startsWith("data:") 
+              ? qrData.message 
+              : `data:image/png;base64,${qrData.message}`;
+            qrStatusText = "Scannez ce QR Code avec WhatsApp (Appareils connectés) :";
+          } else {
+            qrStatusText = `Statut : ${qrData.message || JSON.stringify(qrData)}`;
+          }
+        } catch (e) {
+          qrStatusText = `Erreur de connexion Green API : ${(e as Error).message}`;
+        }
+      } else {
+        qrStatusText = "Identifiants GREEN_API_INSTANCE_ID ou GREEN_API_TOKEN non configurés.";
+      }
+
+      const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reconnexion WhatsApp • MediRappel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <meta http-equiv="refresh" content="20">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
+  <div class="max-w-md w-full bg-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-700 shadow-2xl text-center space-y-5">
+    <div class="w-14 h-14 mx-auto rounded-2xl ${isAlreadyLogged ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'} flex items-center justify-center text-2xl font-black">
+      ${isAlreadyLogged ? '✅' : '📱'}
+    </div>
+    
+    <div>
+      <h1 class="text-xl font-black text-white">Monitoring WhatsApp Green API</h1>
+      <p class="text-xs text-slate-400 mt-1">Instance : <span class="font-mono text-blue-400">${greenInstanceId || 'N/A'}</span></p>
+    </div>
+
+    <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-700/60">
+      <p class="text-sm font-bold ${isAlreadyLogged ? 'text-emerald-400' : 'text-amber-300'} mb-3">${qrStatusText}</p>
+      
+      ${qrImageSrc ? `
+        <div class="bg-white p-4 rounded-2xl inline-block shadow-inner">
+          <img src="${qrImageSrc}" alt="QR Code WhatsApp" class="w-64 h-64 mx-auto object-contain" />
+        </div>
+        <p class="text-[11px] text-slate-400 mt-3">La page s'actualise automatiquement toutes les 20 secondes.</p>
+      ` : ''}
+
+      ${isAlreadyLogged ? `
+        <div class="py-4 text-emerald-300 text-sm font-semibold">
+          Tout fonctionne normalement. Les envois de rappels et de plannings sont actifs.
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="flex gap-2">
+      <a href="?action=qr" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-xs">
+        🔄 Rafraîchir maintenant
+      </a>
+      <a href="?action=status" class="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition">
+        Statut JSON
+      </a>
+    </div>
+  </div>
+</body>
+</html>`;
+
+      return new Response(html, {
+        headers: { "Content-Type": "text/html; charset=utf-8" }
+      });
+    }
+
+    // B. Endpoint GET statut JSON
+    try {
+      const stateResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/getStateInstance/${greenApiToken}`);
+      const stateData = await stateResp.json();
+      return new Response(JSON.stringify(stateData, null, 2), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: (e as Error).message }), {
+        status: 500,
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+      });
+    }
+  }
+
+  // ============================================================================
+  // 2. RÉCEPTION DU WEBHOOK GREEN API (POST)
+  // ============================================================================
+  if (req.method === "POST") {
+    try {
+      const payload = await req.json();
+      console.log("Webhook Green API reçu :", JSON.stringify(payload));
+
+      const typeWebhook = payload.typeWebhook;
+      const stateInstance = payload.stateInstance;
+      const instanceId = payload.instanceData?.idInstance || greenInstanceId;
+
+      // 1. Filtrage strict de l'événement stateInstanceChanged
+      if (typeWebhook === "stateInstanceChanged") {
+        const isCritical = ["notAuthorized", "blocked", "sleepMode"].includes(stateInstance);
+        const isAuthorized = stateInstance === "authorized";
+        const nowIso = new Date().toISOString();
+
+        let qrCodeData: string | null = null;
+
+        // Si déconnexion critique, tenter de récupérer immédiatement le QR Code
+        if (isCritical) {
+          try {
+            const qrRes = await fetch(`${greenHost}/waInstance${greenInstanceId}/qr/${greenApiToken}`);
+            const qrJson = await qrRes.json();
+            if (qrJson.type === "qrCode" && qrJson.message) {
+              qrCodeData = qrJson.message;
+            }
+          } catch (qrErr) {
+            console.warn("Impossible de récupérer le QR Code immédiatement :", qrErr);
+          }
+        }
+
+        // 2. Mise à jour de la table d'état dans Supabase
+        await supabase
+          .from("whatsapp_instance_status")
+          .upsert({
+            id: 1,
+            instance_id: String(instanceId),
+            state_instance: stateInstance,
+            is_connected: isAuthorized,
+            last_qr_code: qrCodeData,
+            last_disconnected_at: isCritical ? nowIso : undefined,
+            last_connected_at: isAuthorized ? nowIso : undefined,
+            alert_active: isCritical,
+            updated_at: nowIso
+          });
+
+        // 3. Enregistrement dans l'historique des alertes
+        await supabase.from("whatsapp_alerts").insert({
+          event_type: isCritical ? "disconnected" : (isAuthorized ? "reconnected" : "status_changed"),
+          state_instance: stateInstance,
+          message: isCritical 
+            ? `Alerte déconnexion WhatsApp : instance passée en ${stateInstance}`
+            : `Notification WhatsApp : instance passée en ${stateInstance}`,
+          qr_code_available: !!qrCodeData
+        });
+
+        // 4. Déclenchement de l'alerte immédiate vers l'administrateur
+        if (isCritical) {
+          await triggerAdminAlert({
+            stateInstance,
+            instanceId: String(instanceId),
+            timeIso: nowIso,
+            qrCodeData,
+            adminEmail,
+            resendApiKey,
+            alertWebhookUrl,
+            supabaseUrl
+          });
+        }
+
+        return new Response(
+          JSON.stringify({
+            success: true,
+            processed: true,
+            stateInstance,
+            alertTriggered: isCritical
+          }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Autres webhooks Green API acquittés avec 200 OK
+      return new Response(
+        JSON.stringify({ success: true, message: "Webhook reçu sans action requise" }),
+        { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    } catch (err) {
+      console.error("Erreur traitement webhook Green API :", err);
+      return new Response(
+        JSON.stringify({ success: false, error: (err as Error).message }),
+        { status: 500, headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+      );
+    }
+  }
+
+  return new Response("Méthode non autorisée", { status: 405 });
+});
+
+// ==============================================================================
+// 3. ENVOI DE L'ALERTE IMMÉDIATE (Email via Resend ou Webhook)
+// ==============================================================================
+async function triggerAdminAlert(opts: {
+  stateInstance: string;
+  instanceId: string;
+  timeIso: string;
+  qrCodeData: string | null;
+  adminEmail: string;
+  resendApiKey: string;
+  alertWebhookUrl: string;
+  supabaseUrl: string;
+}) {
+  const dateFormatted = new Date(opts.timeIso).toLocaleString("fr-FR", { timeZone: "Africa/Libreville" });
+  const qrViewUrl = `${opts.supabaseUrl}/functions/v1/green-api-webhook?action=qr`;
+
+  console.warn(`🚨 [ALERTE CRITIQUE] WhatsApp déconnecté ! Statut : ${opts.stateInstance} à ${dateFormatted}`);
+
+  // Option 1 : Alerte Email par Resend (si configuré)
+  if (opts.resendApiKey && opts.adminEmail) {
+    try {
+      const emailHtml = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+          <div style="text-align: center; margin-bottom: 20px;">
+            <span style="font-size: 40px;">🚨</span>
+            <h2 style="color: #dc2626; margin: 8px 0 4px 0;">Alerte Déconnexion WhatsApp (Green API)</h2>
+            <p style="color: #64748b; font-size: 13px; margin: 0;">Système de Monitoring MediRappel / Urgences</p>
+          </div>
+
+          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+            <p style="margin: 0 0 8px 0; color: #991b1b; font-weight: bold; font-size: 14px;">⚠️ L'instance WhatsApp s'est déconnectée !</p>
+            <ul style="margin: 0; padding-left: 20px; color: #7f1d1d; font-size: 13px; line-height: 1.6;">
+              <li><strong>Statut détecté :</strong> <span style="background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${opts.stateInstance}</span></li>
+              <li><strong>Instance ID :</strong> ${opts.instanceId}</li>
+              <li><strong>Heure de coupure :</strong> ${dateFormatted} (Heure locale)</li>
+            </ul>
+          </div>
+
+          ${opts.qrCodeData ? `
+            <div style="text-align: center; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 20px;">
+              <p style="color: #0f172a; font-weight: bold; font-size: 14px; margin: 0 0 12px 0;">Scannez directement le QR Code ci-dessous :</p>
+              <img src="${opts.qrCodeData.startsWith('data:') ? opts.qrCodeData : `data:image/png;base64,${opts.qrCodeData}`}" alt="QR Code WhatsApp" style="width: 240px; height: 240px; border-radius: 8px; border: 1px solid #cbd5e1;" />
+              <p style="color: #64748b; font-size: 11px; margin-top: 8px;">Ouvrez WhatsApp sur votre téléphone > Appareils connectés > Connecter un appareil</p>
+            </div>
+          ` : `
+            <div style="text-align: center; margin-bottom: 20px;">
+              <a href="${qrViewUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: bold; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-size: 14px;">
+                📲 Ouvrir la page de reconnexion (QR Code)
+              </a>
+            </div>
+          `}
+
+          <div style="text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+            <a href="${qrViewUrl}" style="color: #2563eb; font-size: 12px; font-weight: 600; text-decoration: underline;">
+              Lien direct vers la page de scan QR Code
+            </a>
+          </div>
+        </div>
+      `;
+
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${opts.resendApiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          from: "MediRappel Alertes <onboarding@resend.dev>",
+          to: [opts.adminEmail],
+          subject: `🚨 URGENT : Déconnexion WhatsApp (${opts.stateInstance}) - QR Code à rescanner`,
+          html: emailHtml
+        })
+      });
+      console.log(`Email d'alerte envoyé avec succès à ${opts.adminEmail}`);
+    } catch (e) {
+      console.error("Échec de l'envoi de l'email d'alerte :", e);
+    }
+  }
+
+  // Option 2 : Alerte Webhook externe (Slack, Discord, Telegram, Backend MediRappel)
+  if (opts.alertWebhookUrl) {
+    try {
+      await fetch(opts.alertWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "whatsapp_disconnected",
+          stateInstance: opts.stateInstance,
+          instanceId: opts.instanceId,
+          timestamp: opts.timeIso,
+          qrViewUrl
+        })
+      });
+      console.log("Alerte webhook externe transmise.");
+    } catch (e) {
+      console.error("Échec alerte webhook externe :", e);
+    }
+  }
+}
