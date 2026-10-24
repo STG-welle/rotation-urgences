@@ -119,7 +119,16 @@
           };
         }
 
-        state.stagiaires = stagiairesRes.data || [];
+        state.stagiaires = (stagiairesRes.data || []).map((s) => {
+          const parsed = parseStudentNom(s.nom, s.groupe);
+          return {
+            ...s,
+            nom: parsed.nom,
+            groupe: parsed.groupe
+          };
+        });
+        applyLocalCustomGroups();
+
         state.isSupabaseConnected = true;
         state.isDemoMode = false;
 
@@ -135,6 +144,51 @@
     activateDemoMode();
   }
 
+  // Fonctions de parsing et gestion des groupes personnalisés
+  function parseStudentNom(rawNom, rawGroupe) {
+    let nom = (rawNom || '').trim();
+    let groupe = null;
+
+    if (rawGroupe && ['A', 'B', 'C', 'D'].includes(String(rawGroupe).toUpperCase())) {
+      groupe = String(rawGroupe).toUpperCase();
+    }
+
+    // Extraction d'un éventuel tag de groupe encodé dans le nom : "[B]" ou "[Groupe B]"
+    const match = nom.match(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i);
+    if (match) {
+      if (!groupe) groupe = match[1].toUpperCase();
+      nom = nom.replace(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i, '').trim();
+    }
+
+    return { nom, groupe };
+  }
+
+  function getLocalCustomGroups() {
+    try {
+      const stored = localStorage.getItem('urgences_custom_groups');
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveLocalCustomGroups() {
+    const map = {};
+    state.stagiaires.forEach((s) => {
+      if (s.groupe) map[s.id] = s.groupe;
+    });
+    localStorage.setItem('urgences_custom_groups', JSON.stringify(map));
+  }
+
+  function applyLocalCustomGroups() {
+    const map = getLocalCustomGroups();
+    state.stagiaires.forEach((s) => {
+      if (!s.groupe && map[s.id]) {
+        s.groupe = map[s.id];
+      }
+    });
+  }
+
   function activateDemoMode() {
     state.isSupabaseConnected = false;
     state.isDemoMode = true;
@@ -144,14 +198,25 @@
 
     if (localStagiaires) {
       try {
-        state.stagiaires = JSON.parse(localStagiaires);
+        state.stagiaires = JSON.parse(localStagiaires).map((s) => {
+          const parsed = parseStudentNom(s.nom, s.groupe);
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe };
+        });
       } catch {
-        state.stagiaires = [...window.APP_CONFIG.DEMO_STAGIAIRES];
+        state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
+          const parsed = parseStudentNom(s.nom, s.groupe);
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe };
+        });
       }
     } else {
-      state.stagiaires = [...window.APP_CONFIG.DEMO_STAGIAIRES];
+      state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
+        const parsed = parseStudentNom(s.nom, s.groupe);
+        return { ...s, nom: parsed.nom, groupe: parsed.groupe };
+      });
       saveDemoStagiaires();
     }
+
+    applyLocalCustomGroups();
 
     if (localStartDate) state.config.date_debut_stage = localStartDate;
   }
@@ -185,17 +250,24 @@
   function handleRealtimeChange(payload) {
     const { eventType, new: newRec, old: oldRec } = payload;
     if (eventType === 'INSERT') {
+      const parsed = parseStudentNom(newRec.nom, newRec.groupe);
+      newRec.nom = parsed.nom;
+      newRec.groupe = parsed.groupe;
       if (!state.stagiaires.some((s) => s.id === newRec.id)) {
         state.stagiaires.push(newRec);
         state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
       }
     } else if (eventType === 'UPDATE') {
+      const parsed = parseStudentNom(newRec.nom, newRec.groupe);
+      newRec.nom = parsed.nom;
+      newRec.groupe = parsed.groupe;
       const idx = state.stagiaires.findIndex((s) => s.id === newRec.id);
       if (idx !== -1) state.stagiaires[idx] = newRec;
       state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
     } else if (eventType === 'DELETE') {
       state.stagiaires = state.stagiaires.filter((s) => s.id !== oldRec.id);
     }
+    applyLocalCustomGroups();
     render();
   }
 
@@ -243,11 +315,35 @@
     // 4 Groupes équilibrés (A, B, C, D)
     const groups = [[], [], [], []];
     const studentGroupMap = new Map();
+    const groupLetterToIdx = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
 
-    activeStagiaires.forEach((s, idx) => {
-      const gIdx = idx % 4;
-      groups[gIdx].push(s);
-      studentGroupMap.set(s.id, gIdx);
+    // 1. D'abord affecter les stagiaires ayant un groupe choisi manuellement par l'admin
+    const autoStagiaires = [];
+    activeStagiaires.forEach((s) => {
+      const manualGroup = s.groupe ? String(s.groupe).toUpperCase() : null;
+      if (manualGroup && groupLetterToIdx[manualGroup] !== undefined) {
+        const gIdx = groupLetterToIdx[manualGroup];
+        groups[gIdx].push(s);
+        studentGroupMap.set(s.id, gIdx);
+      } else {
+        autoStagiaires.push(s);
+      }
+    });
+
+    // 2. Répartir les stagiaires automatiques pour équilibrer parfaitement les 4 groupes
+    // afin que le programme hospitalier ne soit jamais bouleversé
+    autoStagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    autoStagiaires.forEach((s) => {
+      let minCount = Infinity;
+      let targetGIdx = 0;
+      for (let i = 0; i < 4; i++) {
+        if (groups[i].length < minCount) {
+          minCount = groups[i].length;
+          targetGIdx = i;
+        }
+      }
+      groups[targetGIdx].push(s);
+      studentGroupMap.set(s.id, targetGIdx);
     });
 
     // Calcul pour chacun des 7 jours de la semaine (Lundi à Dimanche)
@@ -889,8 +985,8 @@
                   ${escapeHtml(student.nom)}
                 </span>
               </div>
-              <span class="text-[8px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 shrink-0 hidden sm:inline-block">
-                ${groupName}
+              <span class="text-[8px] sm:text-[9px] font-extrabold px-1 sm:px-1.5 py-0.5 ${student.groupe ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200'} rounded shrink-0 hidden sm:inline-block" title="${student.groupe ? 'Groupe fixé manuellement par l\'administrateur' : 'Groupe équilibré automatiquement'}">
+                ${groupName}${student.groupe ? ' (Fixé)' : ''}
               </span>
             </div>
           </td>
@@ -911,12 +1007,36 @@
     const activeSpan = document.getElementById('admin-count-active');
     const inactiveSpan = document.getElementById('admin-count-inactive');
     const dateInput = document.getElementById('admin-start-date-input');
+    const summaryEl = document.getElementById('admin-groups-summary');
 
     if (dateInput && state.config.date_debut_stage) {
       dateInput.value = state.config.date_debut_stage.substring(0, 10);
     }
 
     if (!list) return;
+
+    const schedule = calculateDailySchedule(state.weekOffset);
+
+    // Résumé de la répartition des 4 groupes
+    if (summaryEl) {
+      const groupStyles = [
+        'bg-blue-50 text-blue-900 border-blue-200',
+        'bg-emerald-50 text-emerald-900 border-emerald-200',
+        'bg-rose-50 text-rose-900 border-rose-200',
+        'bg-purple-50 text-purple-900 border-purple-200'
+      ];
+      summaryEl.innerHTML = schedule.groups
+        .map((grp, idx) => {
+          const name = GROUP_NAMES[idx];
+          return `
+            <div class="p-2 rounded-xl border ${groupStyles[idx]} flex flex-col items-center justify-center text-center">
+              <span class="text-[10px] font-black uppercase tracking-wider opacity-80">${name}</span>
+              <span class="text-xs sm:text-sm font-black mt-0.5">${grp.length} stagiaire${grp.length > 1 ? 's' : ''}</span>
+            </div>
+          `;
+        })
+        .join('');
+    }
 
     const total = state.stagiaires.length;
     const active = state.stagiaires.filter((s) => s.actif).length;
@@ -930,27 +1050,48 @@
 
     list.innerHTML = sorted
       .map(
-        (s) => `
-      <div class="flex items-center justify-between p-2.5 rounded-xl border ${
+        (s) => {
+          const gIdx = schedule.studentGroupMap.get(s.id);
+          const currentGroupLetter = gIdx !== undefined ? ['A', 'B', 'C', 'D'][gIdx] : '?';
+          const isManual = Boolean(s.groupe);
+
+          return `
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border ${
         s.actif ? 'bg-white border-slate-200' : 'bg-slate-100 border-dashed border-slate-300 opacity-60'
       }">
-        <div class="flex items-center gap-2.5">
-          <span class="w-7 h-7 rounded-full ${s.actif ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'} font-bold flex items-center justify-center text-xs">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="w-7 h-7 rounded-full ${s.actif ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'} font-bold flex items-center justify-center text-xs shrink-0">
             ${getInitials(s.nom)}
           </span>
-          <div>
-            <div class="text-xs sm:text-sm font-bold text-slate-900">${escapeHtml(s.nom)}</div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs sm:text-sm font-bold text-slate-900 truncate">${escapeHtml(s.nom)}</span>
+              <span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
+                isManual ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200'
+              }">
+                Groupe ${currentGroupLetter}${isManual ? ' (Fixé)' : ' (Auto)'}
+              </span>
+            </div>
             <div class="text-[10px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold">
               ${s.actif ? 'Présent • En rotation active' : 'Absent • Exclu temporairement'}
             </div>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+          <!-- Sélecteur de groupe -->
+          <select data-admin-group="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Affecter à un groupe spécifique">
+            <option value="" ${!s.groupe ? 'selected' : ''}>Groupe Auto</option>
+            <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A</option>
+            <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B</option>
+            <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C</option>
+            <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D</option>
+          </select>
+
           <!-- Toggle Actif / Absent -->
-          <label class="relative inline-flex items-center cursor-pointer">
+          <label class="relative inline-flex items-center cursor-pointer" title="${s.actif ? 'Marquer absent' : 'Marquer présent'}">
             <input type="checkbox" data-admin-toggle="${s.id}" class="sr-only peer" ${s.actif ? 'checked' : ''}>
-            <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+            <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
           </label>
 
           <!-- Supprimer -->
@@ -961,9 +1102,18 @@
           </button>
         </div>
       </div>
-    `
+    `;
+        }
       )
       .join('');
+
+    list.querySelectorAll('[data-admin-group]').forEach((sel) => {
+      sel.addEventListener('change', async () => {
+        const id = sel.getAttribute('data-admin-group');
+        const val = sel.value;
+        await changeStagiaireGroup(id, val);
+      });
+    });
 
     list.querySelectorAll('[data-admin-toggle]').forEach((chk) => {
       chk.addEventListener('change', async () => {
@@ -986,6 +1136,37 @@
   // ============================================================================
   // ACTIONS BDD
   // ============================================================================
+  async function changeStagiaireGroup(id, newGroup) {
+    const s = state.stagiaires.find((item) => item.id === id);
+    if (!s) return;
+
+    const validGroup = ['A', 'B', 'C', 'D'].includes(newGroup?.toUpperCase()) ? newGroup.toUpperCase() : null;
+    s.groupe = validGroup;
+    saveLocalCustomGroups();
+
+    if (state.client && state.isSupabaseConnected) {
+      try {
+        let res = await state.client.from('stagiaires').update({ groupe: validGroup }).eq('id', id);
+        if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('groupe'))) {
+          const cleanName = s.nom;
+          const tagNom = validGroup ? `${cleanName} [${validGroup}]` : cleanName;
+          res = await state.client.from('stagiaires').update({ nom: tagNom }).eq('id', id);
+        }
+        if (res.error) throw res.error;
+        render();
+        showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup}` : `${s.nom} en Groupe Auto`, 'success');
+      } catch (err) {
+        console.warn('Erreur mise à jour groupe Supabase:', err);
+        render();
+        showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (Local)` : `${s.nom} en Groupe Auto`, 'info');
+      }
+    } else {
+      saveDemoStagiaires();
+      render();
+      showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (Démo)` : `${s.nom} en Groupe Auto`, 'success');
+    }
+  }
+
   async function toggleStagiaire(id, newStatus) {
     if (state.client && state.isSupabaseConnected) {
       try {
@@ -1009,27 +1190,42 @@
     }
   }
 
-  async function addStagiaire(nom) {
+  async function addStagiaire(nom, groupe = '') {
     const trimmed = nom.trim();
     if (!trimmed) return;
+    const validGroup = ['A', 'B', 'C', 'D'].includes(groupe?.toUpperCase()) ? groupe.toUpperCase() : null;
 
     if (state.client && state.isSupabaseConnected) {
       try {
-        const { data, error } = await state.client.from('stagiaires').insert([{ nom: trimmed, actif: true }]).select().single();
-        if (error) throw error;
-        if (data && !state.stagiaires.some((s) => s.id === data.id)) {
+        let payload = { nom: trimmed, actif: true };
+        if (validGroup) payload.groupe = validGroup;
+
+        let res = await state.client.from('stagiaires').insert([payload]).select().single();
+        if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('groupe'))) {
+          const tagNom = validGroup ? `${trimmed} [${validGroup}]` : trimmed;
+          res = await state.client.from('stagiaires').insert([{ nom: tagNom, actif: true }]).select().single();
+        }
+        if (res.error) throw res.error;
+        const data = res.data;
+        if (data) {
+          const parsed = parseStudentNom(data.nom, data.groupe);
+          data.nom = parsed.nom;
+          data.groupe = parsed.groupe;
           state.stagiaires.push(data);
           state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+          saveLocalCustomGroups();
         }
         render();
-        showToast(`${trimmed} ajouté`, 'success');
+        showToast(`${trimmed} ajouté${validGroup ? ' (Groupe ' + validGroup + ')' : ''}`, 'success');
       } catch (err) {
         showToast('Erreur ajout stagiaire', 'error');
       }
     } else {
-      state.stagiaires.push({ id: 'demo-' + Date.now(), nom: trimmed, actif: true });
+      const newStudent = { id: 'demo-' + Date.now(), nom: trimmed, actif: true, groupe: validGroup };
+      state.stagiaires.push(newStudent);
       state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
       saveDemoStagiaires();
+      saveLocalCustomGroups();
       render();
       showToast(`${trimmed} ajouté (Démo)`, 'success');
     }
@@ -1245,10 +1441,13 @@
 
     document.getElementById('admin-add-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const input = document.getElementById('admin-new-name-input');
-      if (input && input.value.trim()) {
-        await addStagiaire(input.value.trim());
-        input.value = '';
+      const nameInput = document.getElementById('admin-new-name-input');
+      const groupSelect = document.getElementById('admin-new-group-select');
+      if (nameInput && nameInput.value.trim()) {
+        const groupVal = groupSelect ? groupSelect.value : '';
+        await addStagiaire(nameInput.value.trim(), groupVal);
+        nameInput.value = '';
+        if (groupSelect) groupSelect.value = '';
       }
     });
 

@@ -15,8 +15,12 @@ create table if not exists public.stagiaires (
     id uuid primary key default gen_random_uuid(),
     nom text not null,
     actif boolean not null default true,
+    groupe text, -- 'A', 'B', 'C', 'D' ou null (auto-équilibré)
     created_at timestamptz not null default now()
 );
+
+-- Si votre table existe déjà, exécutez simplement cette ligne :
+alter table public.stagiaires add column if not exists groupe text;
 
 -- 2. Table de Configuration (enregistrement unique id = 1)
 create table if not exists public.config (

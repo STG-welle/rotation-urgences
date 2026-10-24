@@ -34,11 +34,34 @@ function calculateDailySchedule(startDateStr, weekOffset, stagiaires) {
   const active = stagiaires.filter(s => s.actif).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
   const groups = [[], [], [], []];
   const studentGroupMap = new Map();
+  const groupLetterToIdx = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
 
-  active.forEach((s, idx) => {
-    const g = idx % 4;
-    groups[g].push(s);
-    studentGroupMap.set(s.id, g);
+  // 1. Affecter les stagiaires avec groupe fixé manuellement
+  const auto = [];
+  active.forEach(s => {
+    const manualGroup = s.groupe ? String(s.groupe).toUpperCase() : null;
+    if (manualGroup && groupLetterToIdx[manualGroup] !== undefined) {
+      const g = groupLetterToIdx[manualGroup];
+      groups[g].push(s);
+      studentGroupMap.set(s.id, g);
+    } else {
+      auto.push(s);
+    }
+  });
+
+  // 2. Équilibrer les stagiaires automatiques
+  auto.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  auto.forEach(s => {
+    let minCount = Infinity;
+    let target = 0;
+    for (let i = 0; i < 4; i++) {
+      if (groups[i].length < minCount) {
+        minCount = groups[i].length;
+        target = i;
+      }
+    }
+    groups[target].push(s);
+    studentGroupMap.set(s.id, target);
   });
 
   // Pour chacun des 7 jours de la semaine :
@@ -103,4 +126,31 @@ res.daysSchedule.forEach(day => {
   }
 });
 
-console.log('\n✅ TEST VALIDÉ : Lundi à Vendredi en rotation circulaire dans les 4 salles, et Samedi/Dimanche en R.A.S !');
+console.log('\n--- TEST CHOIX MANUEL DU GROUPE PAR L\'ADMIN ---');
+// Créer un cas où Thomas Laurent et Camille Dubois sont explicitement mis dans le Groupe B
+const customList = config.DEMO_STAGIAIRES.map(s => {
+  if (s.nom === 'Thomas Laurent') return { ...s, groupe: 'B' };
+  if (s.nom === 'Camille Dubois') return { ...s, groupe: 'B' };
+  if (s.nom === 'Alexandre Petit') return { ...s, groupe: 'A' };
+  return { ...s, groupe: null };
+});
+
+const resCustom = calculateDailySchedule('2026-10-19', 0, customList);
+console.log('Répartition des groupes avec Thomas et Camille dans le Groupe B :');
+['A', 'B', 'C', 'D'].forEach((g, idx) => {
+  console.log(`  Groupe ${g} (${resCustom.groups[idx].length} stagiaires) : ${resCustom.groups[idx].map(s => s.nom).join(', ')}`);
+});
+
+// Vérifier que Thomas et Camille sont ensemble chaque jour
+resCustom.daysSchedule.forEach(day => {
+  if (!day.isWeekend) {
+    const thomasRoom = day.roomAssignments.find(ra => ra.students.includes('Thomas Laurent'));
+    const camilleRoom = day.roomAssignments.find(ra => ra.students.includes('Camille Dubois'));
+    if (!thomasRoom || !camilleRoom || thomasRoom.room !== camilleRoom.room) {
+      throw new Error(`Divergence le ${day.dayName} ! Thomas est en ${thomasRoom?.room} et Camille en ${camilleRoom?.room}`);
+    }
+    console.log(`  ${day.dayName} : Thomas & Camille sont ENSEMBLE en salle ${thomasRoom.room}`);
+  }
+});
+
+console.log('\n✅ TEST VALIDÉ : Choix manuel du groupe respecté et programme toujours parfaitement équilibré !');

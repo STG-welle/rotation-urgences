@@ -469,7 +469,7 @@
           <h4 class="text-xs font-bold uppercase tracking-wider text-blue-900 mb-2">
             Ajouter un stagiaire
           </h4>
-          <form id="admin-add-form" class="flex gap-2">
+          <form id="admin-add-form" class="flex flex-col sm:flex-row gap-2">
             <input 
               type="text" 
               id="admin-new-name-input" 
@@ -477,24 +477,41 @@
               class="flex-1 bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs sm:text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500" 
               required
             >
-            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition">
+            <select 
+              id="admin-new-group-select" 
+              class="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              title="Groupe d'affectation"
+            >
+              <option value="">Groupe Auto (Équilibré)</option>
+              <option value="A">Groupe A</option>
+              <option value="B">Groupe B</option>
+              <option value="C">Groupe C</option>
+              <option value="D">Groupe D</option>
+            </select>
+            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shrink-0">
               Ajouter
             </button>
           </form>
         </div>
 
-        <!-- Liste des présences -->
+        <!-- Liste des présences & Choix des groupes -->
         <div>
-          <div class="flex items-center justify-between mb-2">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1 mb-2">
             <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700">
               Liste des étudiants (<span id="admin-count-total">0</span>)
             </h4>
-            <div class="flex items-center gap-1 text-[11px] font-bold">
+            <div class="flex items-center gap-1.5 text-[11px] font-bold">
               <span class="text-emerald-700"><span id="admin-count-active">0</span> actifs</span> • 
               <span class="text-slate-500"><span id="admin-count-inactive">0</span> absents</span>
             </div>
           </div>
-          <div id="admin-stagiaires-list" class="space-y-2 max-h-64 overflow-y-auto pr-1">
+
+          <!-- Résumé de répartition des 4 groupes -->
+          <div id="admin-groups-summary" class="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mb-2.5">
+            <!-- Rempli par app.js : badges Groupe A, B, C, D -->
+          </div>
+
+          <div id="admin-stagiaires-list" class="space-y-2 max-h-72 overflow-y-auto pr-1">
             <!-- Rempli par app.js -->
           </div>
         </div>
