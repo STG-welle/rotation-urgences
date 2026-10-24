@@ -81,14 +81,15 @@ serve(async (req: Request) => {
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 3. Récupération des stagiaires depuis Supabase
-    const { data: stagiairesData, error: stagiairesError } = await supabase
-      .from("stagiaires")
-      .select("*")
-      .order("nom", { ascending: true });
+    // 3. Récupération des stagiaires et de la configuration depuis Supabase
+    const [stagiairesRes, configRes] = await Promise.all([
+      supabase.from("stagiaires").select("*").order("nom", { ascending: true }),
+      supabase.from("config").select("date_debut_stage").eq("id", 1).maybeSingle()
+    ]);
 
-    if (stagiairesError) throw stagiairesError;
-    const rawStagiaires = stagiairesData || [];
+    if (stagiairesRes.error) throw stagiairesRes.error;
+    const rawStagiaires = stagiairesRes.data || [];
+    const configStartDate = configRes.data?.date_debut_stage || "2026-10-19";
 
     // 4. Parsing robuste des stagiaires et extraction des groupes & équipes
     const stagiaires = rawStagiaires.map((s: { id: string; nom: string; actif?: boolean; groupe?: string; equipe?: string }) => {
@@ -180,7 +181,9 @@ serve(async (req: Request) => {
       return monday;
     }
 
-    const refMonday = new Date(Date.UTC(2026, 9, 19, 0, 0, 0));
+    const [refY, refM, refD] = configStartDate.split("-").map((v: string) => parseInt(v, 10));
+    const refDateObj = new Date(Date.UTC(refY || 2026, (refM ? refM - 1 : 9), refD || 19, 0, 0, 0));
+    const refMonday = getUtcMonday(refDateObj);
     const currentMonday = getUtcMonday(targetDate);
     const diffDays = Math.round((currentMonday.getTime() - refMonday.getTime()) / (24 * 60 * 60 * 1000));
     const weekIndex = Math.floor(diffDays / 7);
@@ -338,52 +341,66 @@ serve(async (req: Request) => {
     let whatsappSendResult: Record<string, unknown> = { status: "preview_only" };
 
     if (!bodyParams.previewOnly) {
-      // Vérifier si un message a déjà été envoyé aujourd'hui pour cette date (sauf si forcé avec force: true)
-      const { data: alreadySentList } = await supabase
-        .from("whatsapp_dispatch_history")
-        .select("id, sent_at, whatsapp_message_id")
-        .eq("dispatch_date", dateKey)
-        .order("sent_at", { ascending: false })
-        .limit(1);
+      if (!bodyParams.force) {
+        // 1. Verrouillage atomique pré-envoi :
+        // Grâce à la contrainte UNIQUE sur dispatch_date, cette insertion ne peut réussir
+        // qu'UNE SEULE FOIS pour une date donnée. Si deux requêtes arrivent simultanément,
+        // la seconde échouera instantanément au niveau du moteur PostgreSQL.
+        const { error: lockErr } = await supabase
+          .from("whatsapp_dispatch_history")
+          .insert({
+            dispatch_date: dateKey,
+            message_text: "Envoi en cours...",
+            source: bodyParams.source || "pg_cron_daily"
+          });
 
-      const alreadySent = alreadySentList && alreadySentList.length > 0 ? alreadySentList[0] : null;
-
-      if (alreadySent && !bodyParams.force) {
-        console.warn(`[ANTI-DOUBLON] Message pour le ${dateKey} DÉJÀ envoyé à ${alreadySent.sent_at} (ID: ${alreadySent.whatsapp_message_id}). Envoi ignoré.`);
-        return new Response(
-          JSON.stringify({
-            success: true,
-            skipped: true,
-            reason: "already_sent_today",
-            date: formattedDateFr,
-            alreadySentAt: alreadySent.sent_at,
-            previousMessageId: alreadySent.whatsapp_message_id,
-            message: whatsappMessage
-          }, null, 2),
-          {
-            headers: {
-              "Content-Type": "application/json",
-              "Access-Control-Allow-Origin": "*"
+        if (lockErr) {
+          console.warn(`[ANTI-DOUBLON STRICT] Message pour le ${dateKey} DÉJÀ envoyé ou en cours d'envoi. Envoi bloqué pour éviter tout doublon.`);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              skipped: true,
+              reason: "already_sent_today",
+              date: formattedDateFr,
+              dateKey,
+              message: whatsappMessage
+            }, null, 2),
+            {
+              headers: {
+                "Content-Type": "application/json",
+                "Access-Control-Allow-Origin": "*"
+              }
             }
-          }
-        );
+          );
+        }
       }
 
-      // Envoi réel vers la passerelle
-      whatsappSendResult = await sendToWhatsAppGateway(whatsappMessage);
+      // 2. Envoi réel vers la passerelle WhatsApp
+      try {
+        whatsappSendResult = await sendToWhatsAppGateway(whatsappMessage);
+      } catch (sendErr) {
+        // En cas d'erreur réseau sur la passerelle, on libère le verrou pour permettre un retry
+        if (!bodyParams.force) {
+          await supabase.from("whatsapp_dispatch_history").delete().eq("dispatch_date", dateKey);
+        }
+        throw sendErr;
+      }
 
-      // Enregistrement dans l'historique d'envoi pour verrouiller le jour
+      // 3. Finalisation : Enregistrement du résultat réel et du message formaté
       try {
         const msgId = (whatsappSendResult.response as Record<string, unknown>)?.idMessage || null;
-        await supabase.from("whatsapp_dispatch_history").insert({
-          dispatch_date: dateKey,
-          message_text: whatsappMessage,
-          whatsapp_message_id: msgId ? String(msgId) : null,
-          gateway: String(whatsappSendResult.gateway || "unknown"),
-          source: bodyParams.source || "pg_cron_daily"
-        });
+        await supabase
+          .from("whatsapp_dispatch_history")
+          .upsert({
+            dispatch_date: dateKey,
+            message_text: whatsappMessage,
+            whatsapp_message_id: msgId ? String(msgId) : null,
+            gateway: String(whatsappSendResult.gateway || "unknown"),
+            source: bodyParams.source || "pg_cron_daily",
+            sent_at: new Date().toISOString()
+          }, { onConflict: "dispatch_date" });
       } catch (logErr) {
-        console.warn("Erreur enregistrement whatsapp_dispatch_history:", logErr);
+        console.warn("Erreur finalisation whatsapp_dispatch_history:", logErr);
       }
     }
 

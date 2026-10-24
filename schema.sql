@@ -34,11 +34,24 @@ create table if not exists public.config (
     updated_at timestamptz not null default now()
 );
 
--- 3. Configuration de la Sécurité Row Level Security (RLS)
+-- 3. Table de Verrouillage & Historique Anti-Doublon WhatsApp
+create table if not exists public.whatsapp_dispatch_history (
+    id serial primary key,
+    dispatch_date text not null,
+    message_text text,
+    whatsapp_message_id text,
+    gateway text default 'unknown',
+    source text default 'pg_cron_daily',
+    sent_at timestamptz not null default now(),
+    constraint whatsapp_dispatch_history_date_unique unique (dispatch_date)
+);
+
+-- 4. Configuration de la Sécurité Row Level Security (RLS)
 -- Pour permettre à l'application web statique (GitHub Pages) de lire et mettre à jour
 -- les données via la clé anonyme (anon key) sans exiger de compte utilisateur individuel :
 alter table public.stagiaires enable row level security;
 alter table public.config enable row level security;
+alter table public.whatsapp_dispatch_history enable row level security;
 
 drop policy if exists "Accès complet stagiaires" on public.stagiaires;
 create policy "Accès complet stagiaires" on public.stagiaires
@@ -48,7 +61,11 @@ drop policy if exists "Accès complet config" on public.config;
 create policy "Accès complet config" on public.config
     for all using (true) with check (true);
 
--- 4. Activation de Supabase Realtime (Indispensable pour la synchro en direct)
+drop policy if exists "Accès complet whatsapp_dispatch_history" on public.whatsapp_dispatch_history;
+create policy "Accès complet whatsapp_dispatch_history" on public.whatsapp_dispatch_history
+    for all using (true) with check (true);
+
+-- 5. Activation de Supabase Realtime (Indispensable pour la synchro en direct)
 -- Permet à tous les téléphones connectés d'observer instantanément les changements
 -- de présence ou les ajouts/suppressions faits par le tuteur/admin.
 do $$
@@ -62,7 +79,7 @@ begin
 end;
 $$;
 
--- 5. Données initiales (Configuration & 12 Stagiaires d'exemple)
+-- 6. Données initiales (Configuration & 12 Stagiaires d'exemple)
 -- Initialisation de la date de début de stage (Lundi de référence)
 insert into public.config (id, date_debut_stage, pin_code)
 values (1, '2026-10-19', '1234')

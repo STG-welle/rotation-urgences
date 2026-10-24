@@ -140,8 +140,8 @@
         showToast('Connecté à Supabase en direct', 'success');
         return;
       } catch (err) {
-        console.warn('Mode démo activé:', err);
-        showToast('Supabase non joignable. Mode démo actif.', 'warning');
+        console.warn('Mode hors ligne:', err);
+        showToast('Mode hors ligne temporaire', 'info');
       }
     }
 
@@ -1543,7 +1543,7 @@
     } else {
       saveDemoStagiaires();
       render();
-      showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (Démo)` : `${s.nom} en Groupe Auto`, 'success');
+      showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup}` : `${s.nom} en Groupe Auto`, 'success');
     }
   }
 
@@ -1573,8 +1573,8 @@
         render();
         showToast(
           newStatus
-            ? `${sName} réintégré(e) (Démo)`
-            : `${sName} suspendu(e) (Démo - Planning protégé)`,
+            ? `${sName} réintégré(e)`
+            : `${sName} suspendu(e) (Planning protégé)`,
           'success'
         );
       }
@@ -1604,7 +1604,7 @@
       saveDemoStagiaires();
       render();
       const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
-      showToast(`${s.nom} configuré(e) en ${teamDesc} (Démo)`, 'success');
+      showToast(`${s.nom} configuré(e) en ${teamDesc}`, 'success');
     }
   }
 
@@ -1635,7 +1635,7 @@
     } else {
       saveDemoStagiaires();
       render();
-      showToast(`${s.nom} : Disponibilité mise à jour (Démo)`, 'success');
+      showToast(`${s.nom} : Disponibilité mise à jour`, 'success');
     }
   }
 
@@ -1678,7 +1678,7 @@
       saveLocalCustomGroups();
       render();
       const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
-      showToast(`${trimmed} ajouté(e) (${teamDesc}) (Démo)`, 'success');
+      showToast(`${trimmed} ajouté(e) (${teamDesc})`, 'success');
     }
   }
 
@@ -1697,7 +1697,7 @@
       state.stagiaires = state.stagiaires.filter((s) => s.id !== id);
       saveDemoStagiaires();
       render();
-      showToast('Stagiaire supprimé (Démo)', 'info');
+      showToast('Stagiaire supprimé', 'info');
     }
   }
 
@@ -1717,7 +1717,7 @@
       state.config.date_debut_stage = newDate;
       saveDemoStagiaires();
       render();
-      showToast('Date enregistrée (Démo)', 'success');
+      showToast('Date enregistrée', 'success');
     }
   }
 
