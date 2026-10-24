@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="fr" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Reconnexion WhatsApp • Rotation Urgences CHUL</title>
+  <meta name="description" content="Surveillance et reconnexion rapide de la passerelle WhatsApp Green API pour les plannings du CHUL.">
+  <meta name="theme-color" content="#020617">
+
+  <link rel="icon" type="image/png" href="logo-chul.png">
+
+  <!-- Google Fonts : Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    @keyframes pulse-slow {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.03); opacity: 0.92; }
+    }
+    .pulse-card {
+      animation: pulse-slow 3s ease-in-out infinite;
+    }
+  </style>
+</head>
+<body class="min-h-full flex flex-col items-center justify-center p-4 sm:p-6 bg-radial from-slate-900 via-slate-950 to-black font-sans selection:bg-blue-500 selection:text-white">
+
+  <!-- En-tête -->
+  <header class="text-center mb-6 max-w-md w-full">
+    <div class="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-slate-700/80 text-xs font-semibold text-slate-300 shadow-inner mb-3">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+      <span>Passerelle WhatsApp • Green API</span>
+    </div>
+    <h1 class="text-2xl sm:text-3xl font-black text-white tracking-tight">
+      Rotation Urgences CHUL
+    </h1>
+    <p class="text-xs sm:text-sm text-slate-400 mt-1">
+      Surveillance de connexion & Reconnexion instantanée
+    </p>
+  </header>
+
+  <!-- Carte Principale -->
+  <main class="w-full max-w-md bg-slate-900/90 backdrop-blur-xl border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+    
+    <!-- Lueur d'ambiance -->
+    <div id="ambient-glow" class="absolute -top-24 -left-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none transition-colors duration-500"></div>
+
+    <!-- État de chargement initial -->
+    <div id="state-loading" class="py-12 text-center space-y-4">
+      <div class="w-12 h-12 mx-auto border-4 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>
+      <p class="text-sm font-semibold text-slate-300">Vérification de l'état WhatsApp auprès de Green API...</p>
+    </div>
+
+    <!-- État 1 : CONNECTÉ (Tout va bien) -->
+    <div id="state-connected" class="hidden text-center space-y-6">
+      <div class="w-20 h-20 mx-auto rounded-3xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-4xl shadow-inner shadow-emerald-500/10">
+        ✅
+      </div>
+
+      <div class="space-y-2">
+        <span class="inline-block px-3 py-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-extrabold uppercase tracking-wider rounded-lg">
+          Liaison Active & Opérationnelle
+        </span>
+        <h2 class="text-xl font-bold text-white">WhatsApp est bien connecté !</h2>
+        <p class="text-xs text-slate-400 leading-relaxed max-w-sm mx-auto">
+          L'instance <span class="font-mono text-emerald-400 font-bold" id="conn-instance-id">710722779329</span> est autorisée. Les plannings quotidiens sont automatiquement diffusés sans interruption.
+        </p>
+      </div>
+
+      <div class="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-left space-y-2 text-xs">
+        <div class="flex items-center justify-between text-slate-400">
+          <span>Statut Green API :</span>
+          <span class="font-mono font-bold text-emerald-400">authorized</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-400">
+          <span>Surveillance Bot Telegram :</span>
+          <span class="font-mono font-bold text-blue-400">@Urgences_chul_bot</span>
+        </div>
+        <div class="flex items-center justify-between text-slate-400">
+          <span>Dernière vérification :</span>
+          <span class="font-mono text-slate-300" id="last-check-time">À l'instant</span>
+        </div>
+      </div>
+
+      <div class="pt-2">
+        <p class="text-[11px] text-slate-500 mb-3">
+          💡 Aucun scan requis tant que ce statut est vert. En cas de coupure inattendue, le bot Telegram vous alertera avec la photo du QR code et affichera le QR code ici même.
+        </p>
+      </div>
+    </div>
+
+    <!-- État 2 : DÉCONNECTÉ (QR Code à scanner) -->
+    <div id="state-disconnected" class="hidden text-center space-y-5">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center text-3xl shadow-inner">
+        📱
+      </div>
+
+      <div>
+        <span class="inline-block px-3 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-extrabold uppercase tracking-wider rounded-lg mb-1.5">
+          Action Requise • Reconnexion
+        </span>
+        <h2 class="text-xl font-bold text-white">Scannez ce QR Code</h2>
+        <p class="text-xs text-slate-400 mt-1">
+          Ouvrez WhatsApp sur votre téléphone pour relier l'appareil.
+        </p>
+      </div>
+
+      <!-- Cadre Image QR Code -->
+      <div class="relative bg-white p-4 rounded-3xl inline-block shadow-2xl border-4 border-slate-800 pulse-card">
+        <img id="qr-image" src="" alt="QR Code de Reconnexion WhatsApp" class="w-64 h-64 mx-auto object-contain block">
+        <div id="qr-loading-overlay" class="hidden absolute inset-0 bg-white/90 backdrop-blur-xs flex items-center justify-center rounded-3xl">
+          <div class="w-8 h-8 border-4 border-slate-300 border-t-blue-600 rounded-full animate-spin"></div>
+        </div>
+      </div>
+
+      <!-- Instructions simples -->
+      <ol class="text-left text-xs text-slate-300 space-y-1.5 bg-slate-950/60 p-4 rounded-2xl border border-slate-800/80">
+        <li class="flex items-start gap-2">
+          <span class="font-bold text-blue-400 shrink-0">1.</span>
+          <span>Ouvrez <strong>WhatsApp</strong> sur votre téléphone.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="font-bold text-blue-400 shrink-0">2.</span>
+          <span>Allez dans <strong>Réglages / Menu (⋮)</strong> &gt; <strong>Appareils connectés</strong>.</span>
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="font-bold text-blue-400 shrink-0">3.</span>
+          <span>Appuyez sur <strong>« Connecter un appareil »</strong> et pointez la caméra vers ce code.</span>
+        </li>
+      </ol>
+
+      <!-- Barre d'actualisation automatique -->
+      <div class="space-y-1">
+        <div class="flex items-center justify-between text-[11px] text-slate-400">
+          <span>Actualisation automatique :</span>
+          <span id="countdown-text" class="font-mono font-bold text-blue-400">20s</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+          <div id="countdown-bar" class="bg-blue-500 h-full w-full transition-all duration-1000 ease-linear"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- État 3 : ERREUR -->
+    <div id="state-error" class="hidden text-center space-y-4 py-4">
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-3xl">
+        ⚠️
+      </div>
+      <h2 class="text-lg font-bold text-white">Impossible de contacter le serveur</h2>
+      <p id="error-message" class="text-xs text-rose-300/80 bg-rose-950/40 p-3 rounded-xl border border-rose-900/50 font-mono"></p>
+    </div>
+
+    <!-- Actions / Boutons bas de page -->
+    <div class="mt-6 pt-5 border-t border-slate-800/80 flex flex-col gap-2.5">
+      <button id="btn-refresh" class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 cursor-pointer">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        <span>Rafraîchir maintenant</span>
+      </button>
+
+      <a href="index.html" class="w-full py-2.5 px-4 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white rounded-xl text-xs font-semibold transition text-center border border-slate-700/60">
+        ← Retour au Planning des Urgences
+      </a>
+    </div>
+
+  </main>
+
+  <footer class="mt-6 text-center text-xs text-slate-500">
+    <p>Service des Urgences Pédiatriques • CHU de Libreville (CHUL)</p>
+  </footer>
+
+  <script>
+    const API_ENDPOINT = "https://ezpbmutbkuoudmyyozlr.supabase.co/functions/v1/green-api-webhook?action=qr_json";
+    const REFRESH_INTERVAL_SEC = 20;
+    let countdown = REFRESH_INTERVAL_SEC;
+    let timerId = null;
+
+    const elLoading = document.getElementById("state-loading");
+    const elConnected = document.getElementById("state-connected");
+    const elDisconnected = document.getElementById("state-disconnected");
+    const elError = document.getElementById("state-error");
+    const elQrImg = document.getElementById("qr-image");
+    const elErrorMsg = document.getElementById("error-message");
+    const elCountdownText = document.getElementById("countdown-text");
+    const elCountdownBar = document.getElementById("countdown-bar");
+    const elLastCheckTime = document.getElementById("last-check-time");
+    const elInstanceId = document.getElementById("conn-instance-id");
+    const elBtnRefresh = document.getElementById("btn-refresh");
+
+    function hideAllStates() {
+      elLoading.classList.add("hidden");
+      elConnected.classList.add("hidden");
+      elDisconnected.classList.add("hidden");
+      elError.classList.add("hidden");
+    }
+
+    async function checkWhatsAppStatus() {
+      try {
+        const response = await fetch(API_ENDPOINT);
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status + " : " + response.statusText);
+        }
+        const data = await response.json();
+        hideAllStates();
+
+        if (data.instanceId) {
+          elInstanceId.textContent = data.instanceId;
+        }
+
+        if (data.isAlreadyLogged) {
+          // Cas 1 : Connecté
+          elConnected.classList.remove("hidden");
+          elLastCheckTime.textContent = new Date().toLocaleTimeString("fr-FR");
+        } else if (data.qrImage) {
+          // Cas 2 : Déconnecté avec QR Code
+          elQrImg.src = data.qrImage;
+          elDisconnected.classList.remove("hidden");
+        } else {
+          // Statut intermédiaire
+          elErrorMsg.textContent = data.qrStatusText || JSON.stringify(data);
+          elError.classList.remove("hidden");
+        }
+      } catch (err) {
+        hideAllStates();
+        elErrorMsg.textContent = err.message || "Erreur de connexion.";
+        elError.classList.remove("hidden");
+      }
+    }
+
+    function startCountdown() {
+      if (timerId) clearInterval(timerId);
+      countdown = REFRESH_INTERVAL_SEC;
+      updateCountdownUi();
+
+      timerId = setInterval(() => {
+        countdown--;
+        updateCountdownUi();
+        if (countdown <= 0) {
+          countdown = REFRESH_INTERVAL_SEC;
+          checkWhatsAppStatus();
+        }
+      }, 1000);
+    }
+
+    function updateCountdownUi() {
+      elCountdownText.textContent = countdown + "s";
+      const pct = (countdown / REFRESH_INTERVAL_SEC) * 100;
+      elCountdownBar.style.width = pct + "%";
+    }
+
+    elBtnRefresh.addEventListener("click", () => {
+      hideAllStates();
+      elLoading.classList.remove("hidden");
+      checkWhatsAppStatus().then(() => startCountdown());
+    });
+
+    // Chargement initial
+    checkWhatsAppStatus().then(() => startCountdown());
+  </script>
+</body>
+</html>

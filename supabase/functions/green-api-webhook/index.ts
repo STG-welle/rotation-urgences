@@ -47,10 +47,10 @@ serve(async (req: Request) => {
   // 1. ENDPOINT GET : Visualisation Live du QR Code ou Statut
   // ============================================================================
   if (req.method === "GET") {
-    // A. Page HTML d'affichage direct du QR Code pour scan rapide
-    if (action === "qr") {
-      let qrImageSrc = "";
-      let qrStatusText = "Récupération du QR code...";
+    // A. Endpoint JSON pour la page web qr.html
+    if (action === "qr_json") {
+      let qrImageSrc: string | null = null;
+      let qrStatusText = "Récupération du statut...";
       let isAlreadyLogged = false;
 
       if (greenInstanceId && greenApiToken) {
@@ -72,74 +72,23 @@ serve(async (req: Request) => {
           qrStatusText = `Erreur de connexion Green API : ${(e as Error).message}`;
         }
       } else {
-        qrStatusText = "Identifiants GREEN_API_INSTANCE_ID ou GREEN_API_TOKEN non configurés.";
+        qrStatusText = "Identifiants Green API non configurés.";
       }
 
-      const html = `<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reconnexion WhatsApp • Rotation Urgences CHUL</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <meta http-equiv="refresh" content="20">
-</head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4 font-sans">
-  <div class="max-w-md w-full bg-slate-800 rounded-3xl p-6 sm:p-8 border border-slate-700 shadow-2xl text-center space-y-5">
-    <div class="w-14 h-14 mx-auto rounded-2xl ${isAlreadyLogged ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'} flex items-center justify-center text-2xl font-black">
-      ${isAlreadyLogged ? '✅' : '📱'}
-    </div>
-    
-    <div>
-      <h1 class="text-xl font-black text-white">Monitoring WhatsApp Green API</h1>
-      <p class="text-xs text-slate-400 mt-1">Instance : <span class="font-mono text-blue-400">${greenInstanceId || 'N/A'}</span></p>
-    </div>
-
-    <div class="p-4 rounded-2xl bg-slate-900/60 border border-slate-700/60">
-      <p class="text-sm font-bold ${isAlreadyLogged ? 'text-emerald-400' : 'text-amber-300'} mb-3">${qrStatusText}</p>
-      
-      ${qrImageSrc ? `
-        <div class="bg-white p-4 rounded-2xl inline-block shadow-inner">
-          <img src="${qrImageSrc}" alt="QR Code WhatsApp" class="w-64 h-64 mx-auto object-contain" />
-        </div>
-        <p class="text-[11px] text-slate-400 mt-3">La page s'actualise automatiquement toutes les 20 secondes.</p>
-      ` : ''}
-
-      ${isAlreadyLogged ? `
-        <div class="py-4 text-emerald-300 text-sm font-semibold">
-          Tout fonctionne normalement. Les envois de plannings sont actifs.
-        </div>
-      ` : ''}
-    </div>
-
-    <div class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-700/60 text-left">
-      <div class="flex items-center gap-2 mb-1.5">
-        <span class="text-base">🔔</span>
-        <span class="text-xs font-bold text-slate-200">Alertes sur Téléphone (Sans inscription)</span>
-      </div>
-      <p class="text-[11px] text-slate-400 mb-2.5 leading-relaxed">
-        Pour faire sonner votre téléphone dès qu'une déconnexion survient :
-      </p>
-      <a href="https://ntfy.sh/${ntfyTopic}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-full py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition">
-        📲 S'abonner aux alertes sur ntfy.sh
-      </a>
-    </div>
-
-    <div class="flex gap-2">
-      <a href="?action=qr" class="flex-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-xs">
-        🔄 Rafraîchir maintenant
-      </a>
-      <a href="?action=status" class="px-4 py-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-xl text-xs font-bold transition">
-        Statut JSON
-      </a>
-    </div>
-  </div>
-</body>
-</html>`;
-
-      return new Response(html, {
-        headers: { "Content-Type": "text/html; charset=utf-8" }
+      return new Response(JSON.stringify({
+        success: true,
+        instanceId: greenInstanceId,
+        isAlreadyLogged,
+        qrImage: qrImageSrc,
+        qrStatusText
+      }), {
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
       });
+    }
+
+    // B. Redirection automatique vers la page de visualisation hébergée
+    if (action === "qr") {
+      return Response.redirect("https://stg-welle.github.io/rotation-urgences/qr.html", 302);
     }
 
     // B. Endpoint GET pour vérifier les réglages enregistrés sur Green API
@@ -313,7 +262,7 @@ async function triggerAdminAlert(opts: {
   supabaseUrl: string;
 }) {
   const dateFormatted = new Date(opts.timeIso).toLocaleString("fr-FR", { timeZone: "Africa/Libreville" });
-  const qrViewUrl = `${opts.supabaseUrl}/functions/v1/green-api-webhook?action=qr`;
+  const qrViewUrl = "https://stg-welle.github.io/rotation-urgences/qr.html";
 
   console.warn(`🚨 [ALERTE CRITIQUE] WhatsApp déconnecté ! Statut : ${opts.stateInstance} à ${dateFormatted}`);
 
@@ -337,25 +286,65 @@ async function triggerAdminAlert(opts: {
     }
   }
 
-  // Canal 2 : Notification Telegram Bot
+  // Canal 2 : Notification Telegram Bot (avec envoi direct de la photo du QR Code si disponible)
   if (opts.telegramBotToken && opts.telegramChatId) {
     try {
-      const tgText = `🚨 *ALERTE DÉCONNEXION WHATSAPP*\n\n` +
-        `⚠️ *Statut :* \`${opts.stateInstance}\`\n` +
-        `📱 *Instance :* \`${opts.instanceId}\`\n` +
-        `🕒 *Heure :* ${dateFormatted}\n\n` +
-        `📲 [Cliquez ici pour scanner le QR Code](${qrViewUrl})`;
+      let sentPhotoSuccess = false;
 
-      await fetch(`https://api.telegram.org/bot${opts.telegramBotToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          chat_id: opts.telegramChatId,
-          text: tgText,
-          parse_mode: "Markdown"
-        })
-      });
-      console.log("Alerte Telegram transmise avec succès.");
+      // Tentative d'envoi direct de l'image QR Code sur Telegram
+      if (opts.qrCodeData) {
+        try {
+          const rawBase64 = opts.qrCodeData.replace(/^data:image\/[a-z]+;base64,/, "");
+          const binaryStr = atob(rawBase64);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+
+          const formData = new FormData();
+          formData.append("chat_id", opts.telegramChatId);
+          formData.append("photo", new Blob([bytes], { type: "image/png" }), "whatsapp-qr.png");
+          formData.append("caption", `🚨 *ALERTE DÉCONNEXION WHATSAPP (Green API)*\n\n` +
+            `⚠️ *Statut :* \`${opts.stateInstance}\`\n` +
+            `📱 *Scannez directement ce QR Code avec WhatsApp* (Appareils connectés) pour réactiver l'envoi des plannings.\n\n` +
+            `🌐 [Page de surveillance](${qrViewUrl})`);
+          formData.append("parse_mode", "Markdown");
+
+          const photoRes = await fetch(`https://api.telegram.org/bot${opts.telegramBotToken}/sendPhoto`, {
+            method: "POST",
+            body: formData
+          });
+          const photoJson = await photoRes.json();
+          if (photoJson.ok) {
+            sentPhotoSuccess = true;
+            console.log("Photo QR Code envoyée avec succès sur Telegram.");
+          } else {
+            console.warn("Échec sendPhoto Telegram :", photoJson.description);
+          }
+        } catch (photoErr) {
+          console.warn("Exception sendPhoto Telegram :", photoErr);
+        }
+      }
+
+      // Si pas de photo ou si échec de l'envoi photo, message texte avec lien direct
+      if (!sentPhotoSuccess) {
+        const tgText = `🚨 *ALERTE DÉCONNEXION WHATSAPP*\n\n` +
+          `⚠️ *Statut :* \`${opts.stateInstance}\`\n` +
+          `📱 *Instance :* \`${opts.instanceId}\`\n` +
+          `🕒 *Heure :* ${dateFormatted}\n\n` +
+          `📲 [Cliquez ici pour ouvrir le QR Code en direct](${qrViewUrl})`;
+
+        await fetch(`https://api.telegram.org/bot${opts.telegramBotToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: opts.telegramChatId,
+            text: tgText,
+            parse_mode: "Markdown"
+          })
+        });
+        console.log("Message texte Telegram transmis avec succès.");
+      }
     } catch (tgErr) {
       console.error("Échec alerte Telegram :", tgErr);
     }
