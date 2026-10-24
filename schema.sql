@@ -17,12 +17,14 @@ create table if not exists public.stagiaires (
     actif boolean not null default true,
     groupe text, -- 'A', 'B', 'C', 'D' ou null (auto-équilibré)
     equipe text not null default '1', -- '1' pour Équipe 1, '2' pour Équipe 2
+    disponibilite text not null default 'tous', -- 'tous', 'matin' (Matinée uniquement), 'apres_midi' (Après-midi uniquement)
     created_at timestamptz not null default now()
 );
 
 -- Si votre table existe déjà, exécutez simplement ces lignes :
 alter table public.stagiaires add column if not exists groupe text;
 alter table public.stagiaires add column if not exists equipe text default '1';
+alter table public.stagiaires add column if not exists disponibilite text default 'tous';
 
 -- 2. Table de Configuration (enregistrement unique id = 1)
 create table if not exists public.config (

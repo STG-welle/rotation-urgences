@@ -176,7 +176,10 @@
               <span id="week-badge" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
                 Semaine en cours
               </span>
-              <span class="text-[11px] text-slate-500 font-bold">• Rotation quotidienne</span>
+              <span id="shift-summary-badge" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold bg-amber-50 text-amber-900 border border-amber-200">
+                ☀️ Éq. 1 Matinée • 🌙 Éq. 2 Après-midi
+              </span>
+              <span class="text-[11px] text-slate-500 font-bold hidden sm:inline">• Rotation des créneaux</span>
             </div>
             <h2 id="week-title" class="text-sm sm:text-base md:text-lg font-black text-slate-900 mt-0.5 truncate">
               Chargement des dates...
@@ -236,17 +239,19 @@
           <button 
             id="btn-team-1" 
             type="button"
-            class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs"
+            class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs"
           >
             <span>👥 Équipe 1</span>
+            <span id="badge-team-1-shift" class="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-amber-400 text-slate-900 shadow-2xs">☀️ Matin</span>
             <span id="badge-team-1-count" class="px-1.5 py-0.2 rounded-full text-[10px] bg-white/20 text-white font-extrabold">0</span>
           </button>
           <button 
             id="btn-team-2" 
             type="button"
-            class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900"
+            class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900"
           >
             <span>👥 Équipe 2</span>
+            <span id="badge-team-2-shift" class="px-1.5 py-0.5 rounded-md text-[10px] font-black bg-indigo-100 text-indigo-900 shadow-2xs">🌙 Après-midi</span>
             <span id="badge-team-2-count" class="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-300 text-slate-700 font-extrabold">0</span>
           </button>
         </div>
@@ -524,6 +529,15 @@
               <option value="C">Groupe C • Départ Lundi : 🔴 Déchocage</option>
               <option value="D">Groupe D • Départ Lundi : 🟣 Observation</option>
             </select>
+            <select 
+              id="admin-new-dispo-select" 
+              class="bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              title="Disponibilité horaire"
+            >
+              <option value="tous">☀️/🌙 Matin & Après-midi</option>
+              <option value="matin">☀️ Matin uniquement</option>
+              <option value="apres_midi">🌙 Après-midi uniquement</option>
+            </select>
             <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition shrink-0">
               Ajouter
             </button>
@@ -648,7 +662,7 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
 
   <!-- Scripts avec versionnage anti-cache forcé -->
-  <script src="config.js?v=20261024_0930"></script>
-  <script src="app.js?v=20261024_0930"></script>
+  <script src="config.js?v=20261024_1000"></script>
+  <script src="app.js?v=20261024_1000"></script>
 </body>
 </html>

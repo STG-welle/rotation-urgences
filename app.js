@@ -127,7 +127,8 @@
             ...s,
             nom: parsed.nom,
             groupe: parsed.groupe,
-            equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1'
+            equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1',
+            disponibilite: (s.disponibilite === 'matin' || s.disponibilite === 'apres_midi') ? s.disponibilite : 'tous'
           };
         });
         applyLocalCustomGroups();
@@ -209,18 +210,18 @@
       try {
         state.stagiaires = JSON.parse(localStagiaires).map((s) => {
           const parsed = parseStudentNom(s.nom, s.groupe);
-          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1' };
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1', disponibilite: s.disponibilite || 'tous' };
         });
       } catch {
         state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
           const parsed = parseStudentNom(s.nom, s.groupe);
-          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1' };
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1', disponibilite: s.disponibilite || 'tous' };
         });
       }
     } else {
       state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
         const parsed = parseStudentNom(s.nom, s.groupe);
-        return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1' };
+        return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1', disponibilite: s.disponibilite || 'tous' };
       });
       saveDemoStagiaires();
     }
@@ -263,6 +264,7 @@
       newRec.nom = parsed.nom;
       newRec.groupe = parsed.groupe;
       newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : '1';
+      newRec.disponibilite = (newRec.disponibilite === 'matin' || newRec.disponibilite === 'apres_midi') ? newRec.disponibilite : 'tous';
       if (!state.stagiaires.some((s) => s.id === newRec.id)) {
         state.stagiaires.push(newRec);
         state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
@@ -272,6 +274,7 @@
       newRec.nom = parsed.nom;
       newRec.groupe = parsed.groupe;
       newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : '1';
+      newRec.disponibilite = (newRec.disponibilite === 'matin' || newRec.disponibilite === 'apres_midi') ? newRec.disponibilite : 'tous';
       const idx = state.stagiaires.findIndex((s) => s.id === newRec.id);
       if (idx !== -1) state.stagiaires[idx] = newRec;
       state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
@@ -297,6 +300,37 @@
     monday.setDate(diff);
     monday.setHours(0, 0, 0, 0);
     return monday;
+  }
+
+  // Calcul de l'alternance hebdomadaire des créneaux (Matinée vs Après-midi)
+  // Référence : Lundi 26 Octobre 2026 (Semaine 0) -> Équipe 1 = Matinée, Équipe 2 = Après-midi
+  // Inversion automatique chaque lundi : Semaine 1 -> Équipe 1 = Après-midi, Équipe 2 = Matinée
+  function getWeekShifts(targetMonday) {
+    const refMonday = new Date(2026, 9, 26); // Lundi 26 octobre 2026
+    refMonday.setHours(0, 0, 0, 0);
+    const diffDays = Math.round((targetMonday.getTime() - refMonday.getTime()) / (24 * 60 * 60 * 1000));
+    const weekIndex = Math.floor(diffDays / 7);
+    const isEvenWeek = ((weekIndex % 2) + 2) % 2 === 0;
+
+    const team1Shift = isEvenWeek ? 'matin' : 'apres_midi';
+    const team2Shift = isEvenWeek ? 'apres_midi' : 'matin';
+
+    return {
+      weekIndex,
+      isEvenWeek,
+      team1: {
+        shift: team1Shift,
+        label: team1Shift === 'matin' ? 'Matinée' : 'Après-midi',
+        badgeLabel: team1Shift === 'matin' ? '☀️ Matin' : '🌙 Après-midi',
+        emoji: team1Shift === 'matin' ? '☀️' : '🌙'
+      },
+      team2: {
+        shift: team2Shift,
+        label: team2Shift === 'matin' ? 'Matinée' : 'Après-midi',
+        badgeLabel: team2Shift === 'matin' ? '☀️ Matin' : '🌙 Après-midi',
+        emoji: team2Shift === 'matin' ? '☀️' : '🌙'
+      }
+    };
   }
 
   function calculateDailySchedule(offsetWeeks = state.weekOffset, targetEquipe = state.selectedEquipe) {
@@ -426,12 +460,17 @@
       return window.APP_CONFIG.ROOMS[roomId];
     }
 
+    const weekShifts = getWeekShifts(targetMonday);
+    const currentTeamShift = (teamKey === '2') ? weekShifts.team2 : weekShifts.team1;
+
     return {
       equipe: teamKey,
       targetMonday,
       targetSunday,
       weekNumber: weekNumber + 1,
       isCurrentWeek: offsetWeeks === 0,
+      shifts: weekShifts,
+      currentTeamShift,
       activeCount: activeStagiaires.length,
       inactiveCount: allStagiaires.length - activeStagiaires.length,
       activeStagiaires,
@@ -502,6 +541,9 @@
     const btn2 = document.getElementById('btn-team-2');
     const badge1 = document.getElementById('badge-team-1-count');
     const badge2 = document.getElementById('badge-team-2-count');
+    const badgeShift1 = document.getElementById('badge-team-1-shift');
+    const badgeShift2 = document.getElementById('badge-team-2-shift');
+    const shiftSummaryBadge = document.getElementById('shift-summary-badge');
     const teamLabel = document.getElementById('team-student-label');
 
     const count1 = state.stagiaires.filter((s) => (s.equipe || '1') === '1' && s.actif).length;
@@ -511,13 +553,34 @@
     if (badge2) badge2.textContent = count2;
     if (teamLabel) teamLabel.textContent = `actifs en Équipe ${state.selectedEquipe}`;
 
+    if (schedule?.shifts) {
+      const s1 = schedule.shifts.team1;
+      const s2 = schedule.shifts.team2;
+
+      if (badgeShift1) {
+        badgeShift1.textContent = s1.badgeLabel;
+        badgeShift1.className = `px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+          s1.shift === 'matin' ? 'bg-amber-400 text-slate-900' : 'bg-indigo-100 text-indigo-900'
+        } shadow-2xs`;
+      }
+      if (badgeShift2) {
+        badgeShift2.textContent = s2.badgeLabel;
+        badgeShift2.className = `px-1.5 py-0.5 rounded-md text-[10px] font-black ${
+          s2.shift === 'matin' ? 'bg-amber-400 text-slate-900' : 'bg-indigo-100 text-indigo-900'
+        } shadow-2xs`;
+      }
+      if (shiftSummaryBadge) {
+        shiftSummaryBadge.textContent = `${s1.emoji} Éq. 1 ${s1.label} • ${s2.emoji} Éq. 2 ${s2.label}`;
+      }
+    }
+
     if (btn1 && btn2) {
       if (state.selectedEquipe === '1') {
-        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
-        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
       } else {
-        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
-        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
       }
     }
   }
@@ -663,8 +726,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
             </svg>
           </div>
-          <div class="leading-snug">
-            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)} <span class="text-[10px] text-blue-700 font-extrabold bg-blue-100 px-1.5 py-0.2 rounded-md">Équipe ${studentEquipe}</span></span> :
+            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)} <span class="text-[10px] text-blue-700 font-extrabold bg-blue-100 px-1.5 py-0.2 rounded-md">Équipe ${studentEquipe} • ${studentSchedule.currentTeamShift?.badgeLabel || ''}</span></span> :
             ${studentSchedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
             ${todayText}.
           </div>
@@ -766,11 +828,17 @@
 
     // 2. En-tête du jour sélectionné
     const activeDay = schedule.daysData[selIdx] || schedule.daysData[0];
+    const shiftInfo = schedule.currentTeamShift;
     if (dayHeader) {
       dayHeader.innerHTML = `
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 flex-wrap">
           <span class="text-sm sm:text-base font-black text-slate-900">
             ${activeDay.dayInfo.label} ${activeDay.dateFormatted}
+          </span>
+          <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${
+            shiftInfo?.shift === 'matin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+          }">
+            ${shiftInfo?.badgeLabel || ''} • Équipe ${schedule.equipe}
           </span>
           ${
             activeDay.isToday
@@ -1156,57 +1224,94 @@
         const teamSchedule = calculateDailySchedule(state.weekOffset, studentTeam);
         const gIdx = teamSchedule.studentGroupMap.get(s.id);
         const currentGroupLetter = gIdx !== undefined ? ['A', 'B', 'C', 'D'][gIdx] : '?';
+        const teamShiftInfo = (studentTeam === '2' ? teamSchedule.shifts.team2 : teamSchedule.shifts.team1);
+        const dispo = s.disponibilite || 'tous';
+        const hasConflict = (dispo === 'matin' && teamShiftInfo.shift === 'apres_midi') ||
+                            (dispo === 'apres_midi' && teamShiftInfo.shift === 'matin');
+        const otherTeam = studentTeam === '1' ? '2' : '1';
 
         return `
-      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border ${
-        s.actif ? 'bg-white border-slate-200' : 'bg-slate-100 border-dashed border-slate-300 opacity-60'
+      <div class="flex flex-col gap-2 p-2.5 rounded-xl border ${
+        hasConflict
+          ? 'bg-amber-50/70 border-amber-300'
+          : s.actif ? 'bg-white border-slate-200' : 'bg-slate-100 border-dashed border-slate-300 opacity-60'
       }">
-        <div class="flex items-center gap-2.5 min-w-0">
-          <span class="w-7 h-7 rounded-full ${s.actif ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'} font-bold flex items-center justify-center text-xs shrink-0">
-            ${getInitials(s.nom)}
-          </span>
-          <div class="min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-xs sm:text-sm font-bold text-slate-900 truncate block">${escapeHtml(s.nom)}</span>
-              <span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${studentTeam === '2' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}">
-                Équipe ${studentTeam}
-              </span>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-7 h-7 rounded-full ${s.actif ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'} font-bold flex items-center justify-center text-xs shrink-0">
+              ${getInitials(s.nom)}
+            </span>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs sm:text-sm font-bold text-slate-900 truncate block">${escapeHtml(s.nom)}</span>
+                <span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${studentTeam === '2' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}">
+                  Équipe ${studentTeam} (${teamShiftInfo.badgeLabel})
+                </span>
+                ${
+                  dispo !== 'tous'
+                    ? `<span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${dispo === 'matin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-purple-100 text-purple-900 border border-purple-300'}">Dispo : ${dispo === 'matin' ? '☀️ Matin' : '🌙 Après-midi'}</span>`
+                    : ''
+                }
+              </div>
+              <div class="text-[10px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold">
+                ${s.actif ? 'Présent • En rotation active' : 'Absent • Exclu temporairement'}
+              </div>
             </div>
-            <div class="text-[10px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold">
-              ${s.actif ? 'Présent • En rotation active' : 'Absent • Exclu temporairement'}
-            </div>
+          </div>
+
+          <div class="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-wrap">
+            <!-- Sélecteur d'équipe -->
+            <select data-admin-equipe="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Changer d'équipe">
+              <option value="1" ${studentTeam === '1' ? 'selected' : ''}>Équipe 1</option>
+              <option value="2" ${studentTeam === '2' ? 'selected' : ''}>Équipe 2</option>
+            </select>
+
+            <!-- Sélecteur de disponibilité horaire -->
+            <select data-admin-dispo="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Contrainte horaire">
+              <option value="tous" ${dispo === 'tous' ? 'selected' : ''}>☀️/🌙 Tous</option>
+              <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>☀️ Matin</option>
+              <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>🌙 Après-midi</option>
+            </select>
+
+            <!-- Sélecteur de groupe explicite avec salle de départ le Lundi -->
+            <select data-admin-group="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Affecter à un groupe spécifique">
+              <option value="" ${!s.groupe ? 'selected' : ''}>Auto (Équilibré)</option>
+              <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • 🔵 Triage</option>
+              <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • 🟢 Piquage</option>
+              <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • 🔴 Déchocage</option>
+              <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • 🟣 Observation</option>
+            </select>
+
+            <!-- Toggle Actif / Absent -->
+            <label class="relative inline-flex items-center cursor-pointer" title="${s.actif ? 'Marquer absent' : 'Marquer présent'}">
+              <input type="checkbox" data-admin-toggle="${s.id}" class="sr-only peer" ${s.actif ? 'checked' : ''}>
+              <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
+            </label>
+
+            <!-- Supprimer -->
+            <button data-admin-delete="${s.id}" data-name="${escapeHtml(s.nom)}" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Supprimer">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+            </button>
           </div>
         </div>
 
-        <div class="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-wrap">
-          <!-- Sélecteur d'équipe -->
-          <select data-admin-equipe="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Changer d'équipe">
-            <option value="1" ${studentTeam === '1' ? 'selected' : ''}>Équipe 1</option>
-            <option value="2" ${studentTeam === '2' ? 'selected' : ''}>Équipe 2</option>
-          </select>
-
-          <!-- Sélecteur de groupe explicite avec salle de départ le Lundi -->
-          <select data-admin-group="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Affecter à un groupe spécifique">
-            <option value="" ${!s.groupe ? 'selected' : ''}>Auto (Équilibré)</option>
-            <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • 🔵 Triage</option>
-            <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • 🟢 Piquage</option>
-            <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • 🔴 Déchocage</option>
-            <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • 🟣 Observation</option>
-          </select>
-
-          <!-- Toggle Actif / Absent -->
-          <label class="relative inline-flex items-center cursor-pointer" title="${s.actif ? 'Marquer absent' : 'Marquer présent'}">
-            <input type="checkbox" data-admin-toggle="${s.id}" class="sr-only peer" ${s.actif ? 'checked' : ''}>
-            <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
-          </label>
-
-          <!-- Supprimer -->
-          <button data-admin-delete="${s.id}" data-name="${escapeHtml(s.nom)}" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Supprimer">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-            </svg>
-          </button>
-        </div>
+        ${
+          hasConflict
+            ? `
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-amber-100/80 border border-amber-300 text-amber-900 text-[11px] font-bold">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="text-sm shrink-0">⚠️</span>
+              <span class="truncate sm:whitespace-normal"><strong>Conflit de créneau :</strong> Dispo <strong>${dispo === 'matin' ? '☀️ Matin' : '🌙 Après-midi'}</strong> uniquement alors que l'Équipe ${studentTeam} est en <strong>${teamShiftInfo.label}</strong> cette semaine.</span>
+            </div>
+            <button type="button" data-admin-quick-swap="${s.id}" data-target-team="${otherTeam}" class="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-black shrink-0 transition shadow-2xs self-end sm:self-auto">
+              Transférer en Équipe ${otherTeam}
+            </button>
+          </div>
+          `
+            : ''
+        }
       </div>
     `;
       })
@@ -1217,6 +1322,22 @@
         const id = sel.getAttribute('data-admin-equipe');
         const val = sel.value;
         await changeStagiaireEquipe(id, val);
+      });
+    });
+
+    list.querySelectorAll('[data-admin-dispo]').forEach((sel) => {
+      sel.addEventListener('change', async () => {
+        const id = sel.getAttribute('data-admin-dispo');
+        const val = sel.value;
+        await changeStagiaireDisponibilite(id, val);
+      });
+    });
+
+    list.querySelectorAll('[data-admin-quick-swap]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-admin-quick-swap');
+        const target = btn.getAttribute('data-target-team');
+        await changeStagiaireEquipe(id, target);
       });
     });
 
@@ -1338,15 +1459,47 @@
     }
   }
 
-  async function addStagiaire(nom, groupe = '', equipe = '1') {
+  async function changeStagiaireDisponibilite(id, newDispo) {
+    const s = state.stagiaires.find((item) => item.id === id);
+    if (!s) return;
+
+    const validDispo = ['matin', 'apres_midi', 'tous'].includes(newDispo) ? newDispo : 'tous';
+    s.disponibilite = validDispo;
+
+    const labelMap = {
+      tous: 'Matin & Après-midi',
+      matin: 'Matinée uniquement',
+      apres_midi: 'Après-midi uniquement'
+    };
+
+    if (state.client && state.isSupabaseConnected) {
+      try {
+        const { error } = await state.client.from('stagiaires').update({ disponibilite: validDispo }).eq('id', id);
+        if (error) throw error;
+        render();
+        showToast(`${s.nom} : Disponibilité mise à jour (${labelMap[validDispo]})`, 'success');
+      } catch (err) {
+        console.warn('Erreur mise à jour disponibilite Supabase:', err);
+        render();
+        showToast(`${s.nom} : Disponibilité mise à jour (Local)`, 'info');
+      }
+    } else {
+      saveDemoStagiaires();
+      render();
+      showToast(`${s.nom} : Disponibilité mise à jour (Démo)`, 'success');
+    }
+  }
+
+  async function addStagiaire(nom, groupe = '', equipe = '1', disponibilite = 'tous') {
     const trimmed = nom.trim();
     if (!trimmed) return;
     const validGroup = ['A', 'B', 'C', 'D'].includes(groupe?.toUpperCase()) ? groupe.toUpperCase() : null;
     const validEquipe = (equipe === '2' || equipe === 2) ? '2' : '1';
+    const validDispo = ['matin', 'apres_midi', 'tous'].includes(disponibilite) ? disponibilite : 'tous';
 
     if (state.client && state.isSupabaseConnected) {
       try {
-        let payload = { nom: trimmed, actif: true, equipe: validEquipe };
+        let payload = { nom: trimmed, actif: true, equipe: validEquipe, disponibilite: validDispo };
         if (validGroup) payload.groupe = validGroup;
 
         let res = await state.client.from('stagiaires').insert([payload]).select().single();
@@ -1357,6 +1510,7 @@
           data.nom = parsed.nom;
           data.groupe = parsed.groupe;
           data.equipe = (data.equipe === '2' || data.equipe === 2) ? '2' : '1';
+          data.disponibilite = validDispo;
           state.stagiaires.push(data);
           state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
           saveLocalCustomGroups();
@@ -1367,7 +1521,7 @@
         showToast('Erreur ajout stagiaire', 'error');
       }
     } else {
-      const newStudent = { id: 'demo-' + Date.now(), nom: trimmed, actif: true, groupe: validGroup, equipe: validEquipe };
+      const newStudent = { id: 'demo-' + Date.now(), nom: trimmed, actif: true, groupe: validGroup, equipe: validEquipe, disponibilite: validDispo };
       state.stagiaires.push(newStudent);
       state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
       saveDemoStagiaires();
@@ -1453,10 +1607,12 @@
     if (day1.isWeekend) {
       text += `⚪ *R.A.S - Repos de garde*\n_Reprise du service lundi matin._\n\n`;
     } else if (!hasTeam2) {
+      const shift = team1Schedule.currentTeamShift;
+      text += `${shift.emoji} *${shift.label.toUpperCase()} • ÉQUIPE 1*\n\n`;
       day1.roomAssignments.forEach((ra) => {
         text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
-          text += `• _(aucun stagiaire)_\n\n`;
+          text += `• _(aucun stagiaire actif)_\n\n`;
         } else {
           ra.students.forEach((st) => {
             text += `• ${st.nom}\n`;
@@ -1468,11 +1624,22 @@
       const team2Schedule = calculateDailySchedule(state.weekOffset, '2');
       const day2 = team2Schedule.daysData[dayIdx];
 
-      text += `📌 *ÉQUIPE 1*\n\n`;
-      day1.roomAssignments.forEach((ra) => {
+      const team1IsMorning = team1Schedule.shifts.team1.shift === 'matin';
+
+      const morningTeam = team1IsMorning
+        ? { name: 'ÉQUIPE 1', day: day1 }
+        : { name: 'ÉQUIPE 2', day: day2 };
+
+      const afternoonTeam = team1IsMorning
+        ? { name: 'ÉQUIPE 2', day: day2 }
+        : { name: 'ÉQUIPE 1', day: day1 };
+
+      // 1. Matinée
+      text += `☀️ *MATINÉE • ${morningTeam.name}*\n\n`;
+      morningTeam.day.roomAssignments.forEach((ra) => {
         text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
-          text += `• _(aucun stagiaire)_\n\n`;
+          text += `• _(aucun stagiaire actif)_\n\n`;
         } else {
           ra.students.forEach((st) => {
             text += `• ${st.nom}\n`;
@@ -1481,11 +1648,15 @@
         }
       });
 
-      text += `───────────────\n📌 *ÉQUIPE 2*\n\n`;
-      day2.roomAssignments.forEach((ra) => {
+      // 2. Séparateur
+      text += `───────────────\n`;
+
+      // 3. Après-midi
+      text += `🌙 *APRÈS-MIDI • ${afternoonTeam.name}*\n\n`;
+      afternoonTeam.day.roomAssignments.forEach((ra) => {
         text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
-          text += `• _(aucun stagiaire)_\n\n`;
+          text += `• _(aucun stagiaire actif)_\n\n`;
         } else {
           ra.students.forEach((st) => {
             text += `• ${st.nom}\n`;
@@ -1662,12 +1833,15 @@
       const nameInput = document.getElementById('admin-new-name-input');
       const groupSelect = document.getElementById('admin-new-group-select');
       const equipeSelect = document.getElementById('admin-new-equipe-select');
+      const dispoSelect = document.getElementById('admin-new-dispo-select');
       if (nameInput && nameInput.value.trim()) {
         const groupVal = groupSelect ? groupSelect.value : '';
         const equipeVal = equipeSelect ? equipeSelect.value : (state.adminFilterEquipe === '2' ? '2' : '1');
-        await addStagiaire(nameInput.value.trim(), groupVal, equipeVal);
+        const dispoVal = dispoSelect ? dispoSelect.value : 'tous';
+        await addStagiaire(nameInput.value.trim(), groupVal, equipeVal, dispoVal);
         nameInput.value = '';
         if (groupSelect) groupSelect.value = '';
+        if (dispoSelect) dispoSelect.value = 'tous';
       }
     });
 
