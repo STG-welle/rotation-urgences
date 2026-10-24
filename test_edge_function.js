@@ -95,7 +95,7 @@ async function main() {
     const context = {
       date: `${DAYS_FR[d]} 26 octobre 2026`,
       hopital: 'Centre Hospitalier Universitaire de Libreville (CHUL)',
-      service: 'Service des Urgences',
+      service: 'Service des Urgences Pédiatriques',
       isWeekend,
       roomAssignments
     };
@@ -106,33 +106,27 @@ async function main() {
 }
 
 function generateFallbackTemplate(ctx) {
-  let msg = `🏥 *${ctx.hopital.toUpperCase()}*\n`;
-  msg += `📋 *${ctx.service.toUpperCase()} - PLANNING DU JOUR*\n`;
-  msg += `📅 _${ctx.date}_\n\n`;
+  let msg = `🏥 *${ctx.hopital} • ${ctx.service}*\n`;
+  msg += `*Date : ${ctx.date}*\n\n`;
 
   if (ctx.isWeekend) {
-    msg += `⚪ *WEEK-END • REPOS DE SERVICE (R.A.S)*\n\n`;
-    msg += `Aucun étudiant stagiaire n'est de garde le samedi et le dimanche.\n`;
-    msg += `💤 Repos bien mérité à tous ! Reprise de la rotation *Lundi matin à 00h00*.\n\n`;
+    msg += `⚪ *R.A.S - Repos de garde*\n`;
+    msg += `_Reprise du service lundi matin._\n\n`;
   } else {
     ctx.roomAssignments.forEach((ra) => {
-      msg += `${ra.emoji} *${ra.room.toUpperCase()}* _(${ra.groupName})_ :\n`;
+      msg += `${ra.emoji} *${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {
-        msg += `  _(aucun stagiaire actif)_\n`;
+        msg += `• _(aucun stagiaire actif)_\n\n`;
       } else {
         ra.activeStudents.forEach((st) => {
-          msg += `  • ${st}\n`;
+          msg += `• ${st}\n`;
         });
+        msg += `\n`;
       }
-      if (ra.absentStudents.length > 0) {
-        msg += `  _Absent(e) : ${ra.absentStudents.join(', ')}_\n`;
-      }
-      msg += `  ℹ️ _${ra.role}_\n\n`;
     });
-    msg += `🩺 *Bonne garde et bon courage à toute l'équipe soignante !*\n`;
   }
 
-  msg += `🔄 _Diffusion automatique • UrgencesRotation CHUL_`;
+  msg += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/`;
   return msg;
 }
 
