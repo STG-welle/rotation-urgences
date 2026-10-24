@@ -47,23 +47,25 @@ function calculateDailySchedule(startDateStr, weekOffset, stagiaires) {
     const dayDate = new Date(targetMonday);
     dayDate.setDate(dayDate.getDate() + d);
 
-    // Jours écoulés depuis le début
-    const daysElapsed = Math.floor((dayDate.getTime() - startMonday.getTime()) / (24 * 3600 * 1000));
-    const cycle = ((daysElapsed % 4) + 4) % 4;
+    const isWeekend = d === 5 || d === 6;
+    const workingDaysElapsed = weekOffset * 5 + Math.min(d, 4);
+    const cycle = ((workingDaysElapsed % 4) + 4) % 4;
 
-    const roomAssignments = config.ROOMS.map(room => {
-      const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
-      return {
-        room: room.name,
-        emoji: room.emoji,
-        students: groups[assignedGroup].map(s => s.nom)
-      };
-    });
+    const roomAssignments = isWeekend
+      ? []
+      : config.ROOMS.map(room => {
+          const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
+          return {
+            room: room.name,
+            emoji: room.emoji,
+            students: groups[assignedGroup].map(s => s.nom)
+          };
+        });
 
     daysSchedule.push({
       dayName: DAYS[d],
       date: dayDate,
-      daysElapsed,
+      isWeekend,
       cycle,
       roomAssignments
     });
@@ -72,14 +74,18 @@ function calculateDailySchedule(startDateStr, weekOffset, stagiaires) {
   return { daysSchedule, studentGroupMap, groups, active };
 }
 
-console.log('--- TEST ROTATION JOURNALIÈRE ---');
+console.log('--- TEST ROTATION JOURNALIÈRE (AVEC WEEK-END R.A.S) ---');
 const res = calculateDailySchedule('2026-10-19', 0, config.DEMO_STAGIAIRES);
 
 res.daysSchedule.forEach(day => {
-  console.log(`\n📅 ${day.dayName} (Cycle ${day.cycle}) :`);
-  day.roomAssignments.forEach(ra => {
-    console.log(`  ${ra.emoji} ${ra.room} : ${ra.students.join(', ')}`);
-  });
+  if (day.isWeekend) {
+    console.log(`\n📅 ${day.dayName} : ⚪ R.A.S (Week-end / Aucun stagiaire en service)`);
+  } else {
+    console.log(`\n📅 ${day.dayName} (Cycle ${day.cycle}) :`);
+    day.roomAssignments.forEach(ra => {
+      console.log(`  ${ra.emoji} ${ra.room} : ${ra.students.join(', ')}`);
+    });
+  }
 });
 
 console.log('\n--- PARCOURS D\'UN ÉTUDIANT (Camille Dubois) SUR LA SEMAINE ---');
@@ -88,9 +94,13 @@ const gIndex = res.studentGroupMap.get(camille.id);
 console.log(`Camille est dans le Groupe ${['A', 'B', 'C', 'D'][gIndex]}`);
 
 res.daysSchedule.forEach(day => {
-  const roomId = (gIndex + day.cycle) % 4;
-  const room = config.ROOMS[roomId];
-  console.log(`  ${day.dayName} : ${room.emoji} ${room.name}`);
+  if (day.isWeekend) {
+    console.log(`  ${day.dayName} : ⚪ R.A.S (Repos)`);
+  } else {
+    const roomId = (gIndex + day.cycle) % 4;
+    const room = config.ROOMS[roomId];
+    console.log(`  ${day.dayName} : ${room.emoji} ${room.name}`);
+  }
 });
 
-console.log('\n✅ TEST VALIDÉ : Camille change de salle chaque jour de façon parfaitement circulaire !');
+console.log('\n✅ TEST VALIDÉ : Lundi à Vendredi en rotation circulaire dans les 4 salles, et Samedi/Dimanche en R.A.S !');

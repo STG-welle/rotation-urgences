@@ -36,13 +36,13 @@
   };
 
   const DAYS = [
-    { key: 'lun', label: 'Lundi', short: 'LUN' },
-    { key: 'mar', label: 'Mardi', short: 'MAR' },
-    { key: 'mer', label: 'Mercredi', short: 'MER' },
-    { key: 'jeu', label: 'Jeudi', short: 'JEU' },
-    { key: 'ven', label: 'Vendredi', short: 'VEN' },
-    { key: 'sam', label: 'Samedi', short: 'SAM' },
-    { key: 'dim', label: 'Dimanche', short: 'DIM' }
+    { key: 'lun', label: 'Lundi', short: 'LUN', isWeekend: false },
+    { key: 'mar', label: 'Mardi', short: 'MAR', isWeekend: false },
+    { key: 'mer', label: 'Mercredi', short: 'MER', isWeekend: false },
+    { key: 'jeu', label: 'Jeudi', short: 'JEU', isWeekend: false },
+    { key: 'ven', label: 'Vendredi', short: 'VEN', isWeekend: false },
+    { key: 'sam', label: 'Samedi', short: 'SAM', isWeekend: true },
+    { key: 'dim', label: 'Dimanche', short: 'DIM', isWeekend: true }
   ];
 
   const GROUP_NAMES = ['Groupe A', 'Groupe B', 'Groupe C', 'Groupe D'];
@@ -258,21 +258,24 @@
 
       const isToday = dayDate.getTime() === today.getTime();
       const isPast = dayDate.getTime() < today.getTime();
+      const isWeekend = d === 5 || d === 6; // Samedi = 5, Dimanche = 6
 
-      // Jours écoulés depuis le début du stage
-      const daysElapsed = Math.floor((dayDate.getTime() - startMonday.getTime()) / msInADay);
-      const cycle = ((daysElapsed % 4) + 4) % 4;
+      // Jours ouvrés écoulés (5 jours par semaine : Lun=0, Mar=1, Mer=2, Jeu=3, Ven=4)
+      const workingDaysElapsed = weekNumber * 5 + Math.min(d, 4);
+      const cycle = ((workingDaysElapsed % 4) + 4) % 4;
 
-      // Affectation des 4 salles pour ce jour
-      const roomAssignments = window.APP_CONFIG.ROOMS.map((room) => {
-        const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
-        return {
-          ...room,
-          assignedGroup,
-          groupName: GROUP_NAMES[assignedGroup],
-          students: groups[assignedGroup] || []
-        };
-      });
+      // Affectation des 4 salles pour ce jour (uniquement du Lundi au Vendredi, Samedi & Dimanche = R.A.S)
+      const roomAssignments = isWeekend
+        ? []
+        : window.APP_CONFIG.ROOMS.map((room) => {
+            const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
+            return {
+              ...room,
+              assignedGroup,
+              groupName: GROUP_NAMES[assignedGroup],
+              students: groups[assignedGroup] || []
+            };
+          });
 
       daysData.push({
         dayIndex: d,
@@ -281,6 +284,7 @@
         dateFormatted: formatDateShort(dayDate),
         isToday,
         isPast,
+        isWeekend,
         cycle,
         roomAssignments
       });
@@ -289,6 +293,16 @@
     // Fonction pour retrouver la salle d'un étudiant pour un jour donné
     function getStudentRoomOnDay(studentId, dayIndex) {
       if (!studentGroupMap.has(studentId)) return null;
+      if (dayIndex === 5 || dayIndex === 6) {
+        return {
+          isWeekend: true,
+          code: 'ras',
+          name: 'R.A.S',
+          shortName: 'R.A.S',
+          emoji: '⚪',
+          badgeClass: 'bg-slate-100 text-slate-600 border-slate-300'
+        };
+      }
       const g = studentGroupMap.get(studentId);
       const dayData = daysData[dayIndex];
       const roomId = (g + dayData.cycle) % 4;
@@ -469,18 +483,35 @@
       const dayNameToday = schedule.daysData[dayToUse].dayInfo.label;
       const dayNameTomorrow = schedule.daysData[tomorrowIndex].dayInfo.label;
 
+      const isTodayWeekend = schedule.daysData[dayToUse].isWeekend;
+      const isTomorrowWeekend = schedule.daysData[tomorrowIndex].isWeekend;
+
+      let todayText = '';
+      if (isTodayWeekend) {
+        todayText = `<span class="font-extrabold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 border border-slate-300">⚪ R.A.S (Week-end / Repos)</span>`;
+      } else {
+        todayText = `au <span class="font-black px-2 py-0.5 rounded-md ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>`;
+      }
+
+      let tomorrowText = '';
+      if (isTomorrowWeekend) {
+        tomorrowText = `⏭️ Demain (${dayNameTomorrow}) : <span class="font-black text-slate-600">⚪ R.A.S (Week-end)</span>`;
+      } else {
+        tomorrowText = `⏭️ Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span>`;
+      }
+
       banner.classList.remove('hidden');
       banner.innerHTML = `
         <div class="flex items-center gap-2.5">
-          <span class="text-xl">📍</span>
+          <span class="text-xl">${isTodayWeekend ? '🏖️' : '📍'}</span>
           <div>
             <span class="font-black text-sm text-slate-900">${escapeHtml(found.nom)}</span> :
-            ${schedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) au ` : `${dayNameToday} au `}
-            <span class="font-black px-2 py-0.5 rounded-md ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>.
+            ${schedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
+            ${todayText}.
           </div>
         </div>
         <div class="text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
-          ⏭️ Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span>
+          ${tomorrowText}
         </div>
       `;
       return;
@@ -506,15 +537,26 @@
 
     schedule.daysData.forEach((day) => {
       const isToday = day.isToday;
+      const isWeekend = day.isWeekend;
       headerHtml += `
         <th class="p-2.5 text-center min-w-[130px] border-b-2 ${
-          isToday ? 'bg-blue-100/80 border-b-blue-600 text-blue-950 font-black' : 'border-b-slate-300 text-slate-700'
+          isToday
+            ? 'bg-blue-100/80 border-b-blue-600 text-blue-950 font-black'
+            : isWeekend
+            ? 'bg-slate-50 border-b-slate-300 text-slate-500'
+            : 'border-b-slate-300 text-slate-700'
         }">
           <div class="flex items-center justify-center gap-1">
             <span>${day.dayInfo.short}</span>
             <span class="text-[10px] font-semibold text-slate-500">${day.dateFormatted}</span>
           </div>
-          ${isToday ? '<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] bg-blue-600 text-white font-extrabold uppercase">Aujourd\'hui</span>' : ''}
+          ${
+            isToday
+              ? '<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] bg-blue-600 text-white font-extrabold uppercase">Aujourd\'hui</span>'
+              : isWeekend
+              ? '<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] bg-slate-200 text-slate-600 font-bold uppercase">Repos</span>'
+              : ''
+          }
         </th>
       `;
     });
@@ -572,17 +614,28 @@
       schedule.daysData.forEach((day) => {
         const room = schedule.getStudentRoomOnDay(student.id, day.dayIndex);
         const isToday = day.isToday;
+        const isWeekend = day.isWeekend;
 
-        cellsHtml += `
-          <td class="p-2 text-center transition ${isToday ? 'col-today' : ''}">
-            <span class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black border ${room.badgeClass} ${
-              isToday ? 'ring-2 ring-blue-500 shadow-xs' : ''
-            }">
-              <span>${room.emoji}</span>
-              <span>${room.shortName}</span>
-            </span>
-          </td>
-        `;
+        if (isWeekend) {
+          cellsHtml += `
+            <td class="p-2 text-center transition ${isToday ? 'col-today bg-blue-50/50' : 'bg-slate-50/40'}">
+              <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-black text-slate-500 bg-slate-100 border border-slate-300 shadow-2xs">
+                R.A.S
+              </span>
+            </td>
+          `;
+        } else {
+          cellsHtml += `
+            <td class="p-2 text-center transition ${isToday ? 'col-today' : ''}">
+              <span class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black border ${room.badgeClass} ${
+                isToday ? 'ring-2 ring-blue-500 shadow-xs' : ''
+              }">
+                <span>${room.emoji}</span>
+                <span>${room.shortName}</span>
+              </span>
+            </td>
+          `;
+        }
       });
 
       rowsHtml += `
@@ -806,17 +859,21 @@
 
     let text = `🏥 *PLANNING URGENCES DU ${day.dayInfo.label.toUpperCase()} ${day.dateFormatted.toUpperCase()}*\n\n`;
 
-    day.roomAssignments.forEach((ra) => {
-      text += `${ra.emoji} *${ra.name.toUpperCase()} :*\n`;
-      if (ra.students.length === 0) {
-        text += `  _(aucun)_\n`;
-      } else {
-        ra.students.forEach((st) => {
-          text += `  • ${st.nom}\n`;
-        });
-      }
-      text += `\n`;
-    });
+    if (day.isWeekend) {
+      text += `⚪ *R.A.S (Week-end / Repos)*\nAucun stagiaire en service le week-end.\n\n`;
+    } else {
+      day.roomAssignments.forEach((ra) => {
+        text += `${ra.emoji} *${ra.name.toUpperCase()} :*\n`;
+        if (ra.students.length === 0) {
+          text += `  _(aucun)_\n`;
+        } else {
+          ra.students.forEach((st) => {
+            text += `  • ${st.nom}\n`;
+          });
+        }
+        text += `\n`;
+      });
+    }
 
     text += `🔄 _Rotation quotidienne UrgencesRotation_`;
     copyTextToClipboard(text, 'Planning du jour copié !');
@@ -833,11 +890,15 @@
 
     schedule.daysData.forEach((day) => {
       text += `📅 *${day.dayInfo.label.toUpperCase()} ${day.dateFormatted} :*\n`;
-      day.roomAssignments.forEach((ra) => {
-        const names = ra.students.map((st) => st.nom).join(', ');
-        text += `  ${ra.emoji} *${ra.name} :* ${names || 'aucun'}\n`;
-      });
-      text += `\n`;
+      if (day.isWeekend) {
+        text += `  ⚪ *R.A.S* (Repos pour tous les stagiaires)\n\n`;
+      } else {
+        day.roomAssignments.forEach((ra) => {
+          const names = ra.students.map((st) => st.nom).join(', ');
+          text += `  ${ra.emoji} *${ra.name} :* ${names || 'aucun'}\n`;
+        });
+        text += `\n`;
+      }
     });
 
     text += `🔄 _Rotation quotidienne UrgencesRotation_`;
