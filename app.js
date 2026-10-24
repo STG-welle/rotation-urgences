@@ -648,6 +648,17 @@
       return;
     }
 
+    if (state.stagiaires.length === 0) {
+      cardsGrid.innerHTML = `
+        <div class="col-span-full bg-white rounded-3xl p-8 text-center border border-slate-300 shadow-xs">
+          <span class="text-4xl mb-2 block">👥</span>
+          <h3 class="text-base font-black text-slate-900">Aucun stagiaire dans la base pour le moment</h3>
+          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">🔒 Admin</strong> en haut à droite pour ajouter vos collègues.</p>
+        </div>
+      `;
+      return;
+    }
+
     const query = state.searchQuery.trim().toLowerCase();
     let cardsHtml = '';
 
@@ -784,7 +795,7 @@
             <div class="max-w-md mx-auto space-y-2">
               <span class="text-3xl">👥</span>
               <p class="font-bold text-slate-700 text-sm">Aucun stagiaire dans la base pour le moment.</p>
-              <p class="text-xs text-slate-500">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">🔒 Admin</strong> en haut à droite (code : <strong>1234</strong>) pour ajouter vos collègues.</p>
+              <p class="text-xs text-slate-500">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">🔒 Admin</strong> en haut à droite pour ajouter vos collègues.</p>
             </div>
           </td>
         </tr>
