@@ -64,7 +64,7 @@ serve(async (req: Request) => {
 
   try {
     // 1. Paramètres optionnels du body (pour tester manuellement une date ou faire une prévisualisation)
-    let bodyParams: { date?: string; previewOnly?: boolean; forceWeekend?: boolean } = {};
+    let bodyParams: { date?: string; previewOnly?: boolean; forceWeekend?: boolean; force?: boolean; source?: string } = {};
     if (req.method === "POST") {
       try {
         bodyParams = await req.json();
@@ -320,10 +320,59 @@ serve(async (req: Request) => {
       whatsappMessage = whatsappMessage.trim() + `\n\n🌐 *Planning complet de la semaine :*\n${SITE_URL}`;
     }
 
-    // 10. Envoi WhatsApp (si ce n'est pas une simple prévisualisation)
+    // 10. Envoi WhatsApp avec verrou anti-doublon (Idempotence)
+    // Empêche formellement qu'un message ne soit envoyé plus d'une fois le même jour
+    const dateKey = targetDate.toISOString().split("T")[0]; // Format standard : "YYYY-MM-DD"
     let whatsappSendResult: Record<string, unknown> = { status: "preview_only" };
+
     if (!bodyParams.previewOnly) {
+      // Vérifier si un message a déjà été envoyé aujourd'hui pour cette date (sauf si forcé avec force: true)
+      const { data: alreadySentList } = await supabase
+        .from("whatsapp_dispatch_history")
+        .select("id, sent_at, whatsapp_message_id")
+        .eq("dispatch_date", dateKey)
+        .order("sent_at", { ascending: false })
+        .limit(1);
+
+      const alreadySent = alreadySentList && alreadySentList.length > 0 ? alreadySentList[0] : null;
+
+      if (alreadySent && !bodyParams.force) {
+        console.warn(`[ANTI-DOUBLON] Message pour le ${dateKey} DÉJÀ envoyé à ${alreadySent.sent_at} (ID: ${alreadySent.whatsapp_message_id}). Envoi ignoré.`);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            skipped: true,
+            reason: "already_sent_today",
+            date: formattedDateFr,
+            alreadySentAt: alreadySent.sent_at,
+            previousMessageId: alreadySent.whatsapp_message_id,
+            message: whatsappMessage
+          }, null, 2),
+          {
+            headers: {
+              "Content-Type": "application/json",
+              "Access-Control-Allow-Origin": "*"
+            }
+          }
+        );
+      }
+
+      // Envoi réel vers la passerelle
       whatsappSendResult = await sendToWhatsAppGateway(whatsappMessage);
+
+      // Enregistrement dans l'historique d'envoi pour verrouiller le jour
+      try {
+        const msgId = (whatsappSendResult.response as Record<string, unknown>)?.idMessage || null;
+        await supabase.from("whatsapp_dispatch_history").insert({
+          dispatch_date: dateKey,
+          message_text: whatsappMessage,
+          whatsapp_message_id: msgId ? String(msgId) : null,
+          gateway: String(whatsappSendResult.gateway || "unknown"),
+          source: bodyParams.source || "pg_cron_daily"
+        });
+      } catch (logErr) {
+        console.warn("Erreur enregistrement whatsapp_dispatch_history:", logErr);
+      }
     }
 
     return new Response(
