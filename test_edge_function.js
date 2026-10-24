@@ -15,7 +15,62 @@ const ROOMS = [
 
 const DAYS_FR = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'];
 const MONTHS_FR = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
-const GROUP_NAMES = ['Groupe A', 'Groupe B', 'Groupe C', 'Groupe D'];
+
+const SCHEDULE_7 = [
+  [[7, 0], [1, 6], [2, 5], [3, 4]],
+  [[4, 5], [2, 0], [3, 6], [7, 1]],
+  [[0, 3], [7, 5], [1, 2], [6, 4]],
+  [[5, 6], [3, 1], [4, 0], [7, 2]],
+  [[4, 2], [6, 0], [7, 3], [5, 1]],
+  [[5, 3], [7, 4], [0, 1], [6, 2]],
+  [[1, 4], [2, 3], [7, 6], [0, 5]]
+];
+
+function gcd(a, b) {
+  while (b) {
+    const t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+function getDailyRoomAssignments(activeStudents, wIdx) {
+  const N = activeStudents.length;
+  if (N === 0) return [[], [], [], []];
+
+  if (N === 8) {
+    const roundIdx = ((wIdx % 7) + 7) % 7;
+    const round = SCHEDULE_7[roundIdx];
+    return round.map((pair) => pair.map((idx) => activeStudents[idx]));
+  }
+
+  const baseCap = Math.floor(N / 4);
+  const remainder = N % 4;
+  const roomCaps = [0, 1, 2, 3].map((r) => baseCap + (r < remainder ? 1 : 0));
+
+  let step = 3;
+  while (gcd(step, N) !== 1 && step < N) step++;
+  if (step >= N) step = 1;
+
+  const offset = ((wIdx * 3) % N + N) % N;
+  const perm = [];
+  for (let i = 0; i < N; i++) {
+    perm.push(activeStudents[(offset + i * step) % N]);
+  }
+
+  const roomShift = ((wIdx % 4) + 4) % 4;
+  const shiftedCaps = [0, 1, 2, 3].map((r) => roomCaps[(r - roomShift + 4) % 4]);
+
+  const assignment = [[], [], [], []];
+  let p = 0;
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < shiftedCaps[r]; c++) {
+      if (p < N) assignment[r].push(perm[p++]);
+    }
+  }
+  return assignment;
+}
 
 async function main() {
   console.log('🔄 Test de récupération des stagiaires depuis Supabase...');
@@ -29,75 +84,66 @@ async function main() {
   const rawStagiaires = await res.json();
   console.log(`✅ ${rawStagiaires.length} stagiaires récupérés depuis Supabase.`);
 
-  // Parsing des stagiaires
   const stagiaires = rawStagiaires.map((s) => {
     let nom = (s.nom || '').trim();
-    let groupe = null;
-    if (s.groupe && ['A', 'B', 'C', 'D'].includes(String(s.groupe).toUpperCase())) {
-      groupe = String(s.groupe).toUpperCase();
-    }
     while (/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i.test(nom)) {
-      const m = nom.match(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i);
-      if (m && !groupe) groupe = m[1].toUpperCase();
       nom = nom.replace(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i, '').trim();
     }
-    return { id: s.id, nom, actif: s.actif !== false, groupe };
+    const equipe = (s.equipe === '2' || s.equipe === 2) ? '2' : '1';
+    return { id: s.id, nom, actif: s.actif !== false, equipe };
   });
 
-  // Répartition stable
-  const allStagiaires = [...stagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
-  const groups = [[], [], [], []];
-  const groupLetterToIdx = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
-  const auto = [];
+  const team1Members = stagiaires.filter((s) => s.equipe === '1');
+  const team2Members = stagiaires.filter((s) => s.equipe === '2');
+  const hasTeam2 = team2Members.length > 0;
 
-  allStagiaires.forEach((s) => {
-    if (s.groupe && groupLetterToIdx[s.groupe] !== undefined) {
-      groups[groupLetterToIdx[s.groupe]].push(s);
-    } else {
-      auto.push(s);
-    }
-  });
+  // Semaine du 26 Octobre 2026 (weekIndex = 1)
+  const weekIndex = 1;
+  const isEvenWeek = ((weekIndex % 2) + 2) % 2 === 0;
+  const team1IsMorning = isEvenWeek;
 
-  auto.forEach((s) => {
-    let minCount = Infinity;
-    let target = 0;
-    for (let i = 0; i < 4; i++) {
-      if (groups[i].length < minCount) {
-        minCount = groups[i].length;
-        target = i;
-      }
-    }
-    groups[target].push(s);
-  });
-
-  // Tester pour chaque jour de la semaine
-  console.log('\n--- SIMULATION DES MESSAGES DU LUNDI AU DIMANCHE ---');
+  console.log('\n--- SIMULATION DES MESSAGES DU LUNDI AU DIMANCHE (BRASSAGE DYNAMIQUE) ---');
 
   for (let d = 0; d < 7; d++) {
     const isWeekend = d === 5 || d === 6;
-    const cycle = d % 4;
+    const workDayIndex = weekIndex * 5 + d;
 
-    const roomAssignments = isWeekend
-      ? []
-      : ROOMS.map((room) => {
-          const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
-          const cohort = groups[assignedGroup] || [];
-          return {
-            room: room.name,
-            emoji: room.emoji,
-            role: room.role,
-            groupName: GROUP_NAMES[assignedGroup],
-            activeStudents: cohort.filter((s) => s.actif).map((s) => s.nom),
-            absentStudents: cohort.filter((s) => !s.actif).map((s) => s.nom)
-          };
-        });
+    function buildDynamicAssignments(members) {
+      const active = members.filter((s) => s.actif).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+      const absent = members.filter((s) => !s.actif).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+      const roomAssigned = getDailyRoomAssignments(active, workDayIndex);
+
+      return ROOMS.map((room) => {
+        const activeInRoom = roomAssigned[room.id] || [];
+        return {
+          room: room.name,
+          emoji: room.emoji,
+          role: room.role,
+          activeStudents: activeInRoom.map((s) => s.nom),
+          absentStudents: room.id === 0 ? absent.map((s) => s.nom) : []
+        };
+      });
+    }
+
+    const roomAssignmentsTeam1 = isWeekend ? [] : buildDynamicAssignments(team1Members);
+    const roomAssignmentsTeam2 = (isWeekend || !hasTeam2) ? [] : buildDynamicAssignments(team2Members);
+
+    const morningTeam = team1IsMorning
+      ? { name: "Équipe 1", assignments: roomAssignmentsTeam1, shift: "Matinée", emoji: "☀️" }
+      : { name: "Équipe 2", assignments: roomAssignmentsTeam2, shift: "Matinée", emoji: "☀️" };
+
+    const afternoonTeam = team1IsMorning
+      ? { name: "Équipe 2", assignments: roomAssignmentsTeam2, shift: "Après-midi", emoji: "🌙" }
+      : { name: "Équipe 1", assignments: roomAssignmentsTeam1, shift: "Après-midi", emoji: "🌙" };
 
     const context = {
-      date: `${DAYS_FR[d]} 26 octobre 2026`,
+      date: `${DAYS_FR[d]} ${26 + d} octobre 2026`,
       hopital: 'Centre Hospitalier Universitaire de Libreville (CHUL)',
       service: 'Service des Urgences Pédiatriques',
       isWeekend,
-      roomAssignments
+      hasTeam2,
+      morningTeam,
+      afternoonTeam
     };
 
     console.log(`\n================== MESSAGE WHATSAPP (${DAYS_FR[d].toUpperCase()}) ==================`);
@@ -112,9 +158,35 @@ function generateFallbackTemplate(ctx) {
   if (ctx.isWeekend) {
     msg += `⚪ *R.A.S - Repos de garde*\n`;
     msg += `_Reprise du service lundi matin._\n\n`;
+  } else if (ctx.hasTeam2) {
+    msg += `☀️ *${ctx.morningTeam.name} — Créneau : Matinée (07h30 - 14h30)*\n\n`;
+    ctx.morningTeam.assignments.forEach((ra) => {
+      msg += `${ra.emoji} *${ra.room}*\n`;
+      if (ra.activeStudents.length === 0) {
+        msg += `• _(aucun stagiaire actif)_\n\n`;
+      } else {
+        ra.activeStudents.forEach((st) => {
+          msg += `• ${st}\n`;
+        });
+        msg += `\n`;
+      }
+    });
+
+    msg += `🌙 *${ctx.afternoonTeam.name} — Créneau : Après-midi (14h00 - 20h30)*\n\n`;
+    ctx.afternoonTeam.assignments.forEach((ra) => {
+      msg += `${ra.emoji} *${ra.room}*\n`;
+      if (ra.activeStudents.length === 0) {
+        msg += `• _(aucun stagiaire actif)_\n\n`;
+      } else {
+        ra.activeStudents.forEach((st) => {
+          msg += `• ${st}\n`;
+        });
+        msg += `\n`;
+      }
+    });
   } else {
-    ctx.roomAssignments.forEach((ra) => {
-      msg += `${ra.emoji} *${ra.room}*\n\n`;
+    ctx.morningTeam.assignments.forEach((ra) => {
+      msg += `${ra.emoji} *${ra.room}*\n`;
       if (ra.activeStudents.length === 0) {
         msg += `• _(aucun stagiaire actif)_\n\n`;
       } else {

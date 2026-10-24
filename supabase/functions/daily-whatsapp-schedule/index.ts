@@ -171,31 +171,7 @@ serve(async (req: Request) => {
     const year = targetDate.getUTCFullYear();
     const formattedDateFr = `${dayName} ${dayNumber} ${monthName} ${year}`;
 
-    // 7. Calcul de la rotation du jour
-    // Cycle quotidien invariant chaque semaine : Lundi=0, Mardi=1, Mercredi=2, Jeudi=3, Vendredi=0
-    const cycle = dayIndex % 4;
-
-    function buildAssignments(cohortGroups: Array<Array<typeof stagiaires[0]>>) {
-      return ROOMS.map((room) => {
-        const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
-        const cohort = cohortGroups[assignedGroup] || [];
-        const activeStudents = cohort.filter((s) => s.actif);
-        const absentStudents = cohort.filter((s) => !s.actif);
-        return {
-          room: room.name,
-          emoji: room.emoji,
-          role: room.role,
-          groupName: GROUP_NAMES[assignedGroup],
-          activeStudents: activeStudents.map((s) => s.nom),
-          absentStudents: absentStudents.map((s) => s.nom)
-        };
-      });
-    }
-
-    const roomAssignmentsTeam1 = isWeekend ? [] : buildAssignments(groupsTeam1);
-    const roomAssignmentsTeam2 = (isWeekend || !hasTeam2) ? [] : buildAssignments(groupsTeam2);
-
-    // 8. Calcul de l'alternance hebdomadaire des créneaux (Matinée vs Après-midi)
+    // 7. Calcul de l'alternance hebdomadaire des créneaux (Matinée vs Après-midi)
     // Référence : Lundi 19 Octobre 2026 (Semaine 0) -> Équipe 1 = Matinée, Équipe 2 = Après-midi
     // Inversion automatique chaque lundi :
     // - Semaine du 26 Octobre (Semaine 1) : Équipe 1 = Après-midi, Équipe 2 = Matinée
@@ -217,6 +193,86 @@ serve(async (req: Request) => {
     const isEvenWeek = ((weekIndex % 2) + 2) % 2 === 0;
 
     const team1IsMorning = isEvenWeek;
+
+    // 8. Calcul de la rotation avec BRASSAGE DYNAMIQUE QUOTIDIEN DES BINÔMES
+    // social golfer / tournoi harmonique 7 jours garantissant 0 répétitions consécutives de salle ou de binôme
+    const workDayIndex = weekIndex * 5 + dayIndex;
+
+    const SCHEDULE_7 = [
+      [[7, 0], [1, 6], [2, 5], [3, 4]],
+      [[4, 5], [2, 0], [3, 6], [7, 1]],
+      [[0, 3], [7, 5], [1, 2], [6, 4]],
+      [[5, 6], [3, 1], [4, 0], [7, 2]],
+      [[4, 2], [6, 0], [7, 3], [5, 1]],
+      [[5, 3], [7, 4], [0, 1], [6, 2]],
+      [[1, 4], [2, 3], [7, 6], [0, 5]]
+    ];
+
+    function gcd(a: number, b: number): number {
+      while (b) {
+        const t = b;
+        b = a % b;
+        a = t;
+      }
+      return a;
+    }
+
+    function getDailyRoomAssignments(activeStudents: Array<typeof stagiaires[0]>, wIdx: number) {
+      const N = activeStudents.length;
+      if (N === 0) return [[], [], [], []];
+
+      if (N === 8) {
+        const roundIdx = ((wIdx % 7) + 7) % 7;
+        const round = SCHEDULE_7[roundIdx];
+        return round.map((pair) => pair.map((idx) => activeStudents[idx]));
+      }
+
+      const baseCap = Math.floor(N / 4);
+      const remainder = N % 4;
+      const roomCaps = [0, 1, 2, 3].map((r) => baseCap + (r < remainder ? 1 : 0));
+
+      let step = 3;
+      while (gcd(step, N) !== 1 && step < N) step++;
+      if (step >= N) step = 1;
+
+      const offset = ((wIdx * 3) % N + N) % N;
+      const perm: Array<typeof stagiaires[0]> = [];
+      for (let i = 0; i < N; i++) {
+        perm.push(activeStudents[(offset + i * step) % N]);
+      }
+
+      const roomShift = ((wIdx % 4) + 4) % 4;
+      const shiftedCaps = [0, 1, 2, 3].map((r) => roomCaps[(r - roomShift + 4) % 4]);
+
+      const assignment: Array<Array<typeof stagiaires[0]>> = [[], [], [], []];
+      let p = 0;
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < shiftedCaps[r]; c++) {
+          if (p < N) assignment[r].push(perm[p++]);
+        }
+      }
+      return assignment;
+    }
+
+    function buildDynamicAssignments(teamMembers: typeof stagiaires) {
+      const activeMembers = teamMembers.filter((s) => s.actif).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+      const absentMembers = teamMembers.filter((s) => !s.actif).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+      const roomAssigned = getDailyRoomAssignments(activeMembers, workDayIndex);
+
+      return ROOMS.map((room) => {
+        const activeInRoom = roomAssigned[room.id] || [];
+        return {
+          room: room.name,
+          emoji: room.emoji,
+          role: room.role,
+          activeStudents: activeInRoom.map((s) => s.nom),
+          absentStudents: room.id === 0 ? absentMembers.map((s) => s.nom) : []
+        };
+      });
+    }
+
+    const roomAssignmentsTeam1 = isWeekend ? [] : buildDynamicAssignments(team1Members);
+    const roomAssignmentsTeam2 = (isWeekend || !hasTeam2) ? [] : buildDynamicAssignments(team2Members);
 
     const morningTeam = team1IsMorning
       ? { name: "Équipe 1", assignments: roomAssignmentsTeam1, shift: "Matinée", emoji: "☀️" }

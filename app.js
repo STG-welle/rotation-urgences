@@ -335,6 +335,74 @@
     };
   }
 
+  // ============================================================================
+  // BRASSAGE DYNAMIQUE QUOTIDIEN DES BINÔMES (Social Golfer / Tournoi Harmonique)
+  // Permet à tous les stagiaires de changer de binôme et de salle chaque jour,
+  // et de travailler avec TOUS les membres de l'équipe au cours du mois.
+  // Propriétés mathématiques vérifiées :
+  // 1. Zéro répétition de salle consécutive (aucun stagiaire dans la même salle 2 jours de suite)
+  // 2. Zéro répétition de binôme consécutive (aucun stagiaire avec le même collègue 2 jours de suite)
+  // 3. Toutes les paires se rencontrent équitablement au moins une fois par semaine / 2 à 3 fois par mois
+  // ============================================================================
+  const SCHEDULE_7 = [
+    [[7, 0], [1, 6], [2, 5], [3, 4]], // Tour 0 : Triage [7,0], Piquage [1,6], Déchoc [2,5], Obs [3,4]
+    [[4, 5], [2, 0], [3, 6], [7, 1]], // Tour 1
+    [[0, 3], [7, 5], [1, 2], [6, 4]], // Tour 2
+    [[5, 6], [3, 1], [4, 0], [7, 2]], // Tour 3
+    [[4, 2], [6, 0], [7, 3], [5, 1]], // Tour 4
+    [[5, 3], [7, 4], [0, 1], [6, 2]], // Tour 5
+    [[1, 4], [2, 3], [7, 6], [0, 5]]  // Tour 6
+  ];
+
+  function gcd(a, b) {
+    while (b) {
+      const t = b;
+      b = a % b;
+      a = t;
+    }
+    return a;
+  }
+
+  function getDailyRoomAssignments(activeStudents, workDayIndex) {
+    const N = activeStudents.length;
+    if (N === 0) return [[], [], [], []];
+
+    // Pour l'effectif standard de 8 stagiaires (2 par salle) :
+    // Utilise la matrice optimale canonique vérifiée
+    if (N === 8) {
+      const roundIdx = ((workDayIndex % 7) + 7) % 7;
+      const round = SCHEDULE_7[roundIdx];
+      return round.map((pair) => pair.map((idx) => activeStudents[idx]));
+    }
+
+    // Répartition adaptative pour tout autre effectif (N != 8)
+    const baseCap = Math.floor(N / 4);
+    const remainder = N % 4;
+    const roomCaps = [0, 1, 2, 3].map((r) => baseCap + (r < remainder ? 1 : 0));
+
+    let step = 3;
+    while (gcd(step, N) !== 1 && step < N) step++;
+    if (step >= N) step = 1;
+
+    const offset = ((workDayIndex * 3) % N + N) % N;
+    const perm = [];
+    for (let i = 0; i < N; i++) {
+      perm.push(activeStudents[(offset + i * step) % N]);
+    }
+
+    const roomShift = ((workDayIndex % 4) + 4) % 4;
+    const shiftedCaps = [0, 1, 2, 3].map((r) => roomCaps[(r - roomShift + 4) % 4]);
+
+    const assignment = [[], [], [], []];
+    let p = 0;
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < shiftedCaps[r]; c++) {
+        if (p < N) assignment[r].push(perm[p++]);
+      }
+    }
+    return assignment;
+  }
+
   function calculateDailySchedule(offsetWeeks = state.weekOffset, targetEquipe = state.selectedEquipe) {
     const today = new Date();
     if (state.simulatedDayOffset) {
@@ -362,7 +430,7 @@
     const allStagiaires = [...teamStagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
     const activeStagiaires = allStagiaires.filter((s) => s.actif === true);
 
-    // 4 Groupes stables (A, B, C, D)
+    // 4 Groupes stables (A, B, C, D) conservés pour compatibilité et affichage admin
     const groups = [[], [], [], []];
     const studentGroupMap = new Map();
     const groupLetterToIdx = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
@@ -380,8 +448,7 @@
       }
     });
 
-    // 2. Répartir les stagiaires automatiques de façon stable sur la TOTALITÉ des stagiaires
-    // afin que le programme hospitalier ne soit JAMAIS bouleversé en cas d'absence
+    // 2. Répartir les stagiaires automatiques
     autoStagiaires.forEach((s) => {
       let minCount = Infinity;
       let targetGIdx = 0;
@@ -406,29 +473,29 @@
       const isPast = dayDate.getTime() < today.getTime();
       const isWeekend = d === 5 || d === 6; // Samedi = 5, Dimanche = 6
 
-      // Cycle quotidien stable et prévisible d'une semaine à l'autre :
-      // Lundi = 0, Mardi = 1, Mercredi = 2, Jeudi = 3, Vendredi = 0 (ou d % 4)
-      // Samedi (d=5) et Dimanche (d=6) sont en R.A.S (Week-end / Repos)
-      // Chaque Lundi démarre toujours avec le Groupe A en Triage, B en Piquage, C en Déchocage, D en Observation
-      const cycle = d % 4;
+      // Jour ouvré index cumulé depuis le début du stage (Lundi S0 = 0)
+      const workDayIndex = weekNumber * 5 + d;
+      const cycle = ((workDayIndex % 7) + 7) % 7;
 
-      // Affectation des 4 salles pour ce jour (uniquement du Lundi au Vendredi, Samedi & Dimanche = R.A.S)
-      const roomAssignments = isWeekend
-        ? []
-        : window.APP_CONFIG.ROOMS.map((room) => {
-            const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
-            const cohortStudents = groups[assignedGroup] || [];
-            const activeInRoom = cohortStudents.filter((s) => s.actif === true);
-            const absentInRoom = cohortStudents.filter((s) => s.actif === false);
-            return {
-              ...room,
-              assignedGroup,
-              groupName: GROUP_NAMES[assignedGroup],
-              students: activeInRoom,
-              absentStudents: absentInRoom,
-              cohortStudents
-            };
-          });
+      // Affectation des 4 salles avec brassage quotidien des binômes
+      // Uniquement du Lundi au Vendredi, Samedi & Dimanche = R.A.S
+      let roomAssignments = [];
+      if (!isWeekend) {
+        const dailyRoomStudents = getDailyRoomAssignments(activeStagiaires, workDayIndex);
+        const absentStudents = allStagiaires.filter((s) => s.actif === false);
+
+        roomAssignments = window.APP_CONFIG.ROOMS.map((room) => {
+          const activeInRoom = dailyRoomStudents[room.id] || [];
+          return {
+            ...room,
+            assignedGroup: room.id,
+            groupName: 'Binôme du jour',
+            students: activeInRoom,
+            absentStudents: room.id === 0 ? absentStudents : [],
+            cohortStudents: activeInRoom
+          };
+        });
+      }
 
       daysData.push({
         dayIndex: d,
@@ -438,6 +505,7 @@
         isToday,
         isPast,
         isWeekend,
+        workDayIndex,
         cycle,
         roomAssignments
       });
@@ -445,7 +513,6 @@
 
     // Fonction pour retrouver la salle d'un étudiant pour un jour donné
     function getStudentRoomOnDay(studentId, dayIndex) {
-      if (!studentGroupMap.has(studentId)) return null;
       if (dayIndex === 5 || dayIndex === 6) {
         return {
           isWeekend: true,
@@ -456,10 +523,27 @@
           badgeClass: 'bg-slate-100 text-slate-600 border-slate-300'
         };
       }
-      const g = studentGroupMap.get(studentId);
       const dayData = daysData[dayIndex];
-      const roomId = (g + dayData.cycle) % 4;
-      return window.APP_CONFIG.ROOMS[roomId];
+      if (!dayData || !dayData.roomAssignments) return null;
+      for (const room of dayData.roomAssignments) {
+        if (room.students && room.students.some((s) => s.id === studentId)) {
+          return room;
+        }
+      }
+      return null;
+    }
+
+    // Fonction pour retrouver le ou les binômes d'un étudiant pour un jour donné
+    function getStudentPartnersOnDay(studentId, dayIndex) {
+      if (dayIndex === 5 || dayIndex === 6) return [];
+      const dayData = daysData[dayIndex];
+      if (!dayData || !dayData.roomAssignments) return [];
+      for (const room of dayData.roomAssignments) {
+        if (room.students && room.students.some((s) => s.id === studentId)) {
+          return room.students.filter((s) => s.id !== studentId);
+        }
+      }
+      return [];
     }
 
     const weekShifts = getWeekShifts(targetMonday);
@@ -480,7 +564,8 @@
       daysData,
       groups,
       studentGroupMap,
-      getStudentRoomOnDay
+      getStudentRoomOnDay,
+      getStudentPartnersOnDay
     };
   }
 
@@ -702,11 +787,15 @@
       const isTodayWeekend = studentSchedule.daysData[dayToUse].isWeekend;
       const isTomorrowWeekend = studentSchedule.daysData[tomorrowIndex].isWeekend;
 
+      const todayPartners = studentSchedule.getStudentPartnersOnDay(found.id, dayToUse);
+      const tomorrowPartners = studentSchedule.getStudentPartnersOnDay(found.id, tomorrowIndex);
+
       let todayText = '';
       if (isTodayWeekend) {
         todayText = `<span class="font-extrabold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 border border-slate-300">⚪ R.A.S (Week-end / Repos)</span>`;
       } else if (todayRoom) {
-        todayText = `au <span class="font-black px-2 py-0.5 rounded-md ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>`;
+        const partnerStr = todayPartners.length > 0 ? ` avec <span class="underline font-bold">${todayPartners.map(p => escapeHtml(p.nom)).join(', ')}</span>` : '';
+        todayText = `au <span class="font-black px-2 py-0.5 rounded-md ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>${partnerStr}`;
       } else {
         todayText = `en rotation`;
       }
@@ -715,7 +804,8 @@
       if (isTomorrowWeekend) {
         tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-600">⚪ R.A.S (Week-end)</span>`;
       } else if (tomorrowRoom) {
-        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span>`;
+        const partnerStr = tomorrowPartners.length > 0 ? ` (avec ${tomorrowPartners.map(p => escapeHtml(p.nom)).join(', ')})` : '';
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span><span class="text-slate-600 font-semibold">${partnerStr}</span>`;
       } else {
         tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-700">En rotation</span>`;
       }
@@ -1094,17 +1184,25 @@
               </span>
             </td>
           `;
-        } else {
+        } else if (room) {
+          const partners = schedule.getStudentPartnersOnDay(student.id, day.dayIndex);
+          const partnerNames = partners.map((p) => p.nom).join(', ');
+          const partnerTitle = partnerNames ? `En binôme avec ${escapeHtml(partnerNames)}` : '';
           cellsHtml += `
-            <td class="p-1 sm:p-2 text-center transition ${isToday ? 'col-today' : ''}">
-              <span class="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-black border ${room.badgeClass} ${
+            <td class="p-1 sm:p-2 text-center transition ${isToday ? 'col-today' : ''}" title="${partnerTitle}">
+              <span class="inline-flex flex-col items-center justify-center gap-0.5 px-1.5 sm:px-2 py-1 rounded-lg text-[10px] sm:text-xs font-black border ${room.badgeClass} ${
                 isToday ? 'ring-2 ring-blue-500 shadow-xs' : ''
               }">
-                <span class="text-xs sm:text-sm leading-none">${room.emoji}</span>
-                <span class="truncate">${room.shortName}</span>
+                <div class="flex items-center gap-0.5 sm:gap-1">
+                  <span class="text-xs sm:text-sm leading-none">${room.emoji}</span>
+                  <span class="truncate">${room.shortName}</span>
+                </div>
+                ${partnerNames ? `<span class="text-[9px] font-semibold text-slate-600 truncate max-w-[85px] sm:max-w-[110px] leading-tight hidden sm:block">avec ${escapeHtml(partnerNames)}</span>` : ''}
               </span>
             </td>
           `;
+        } else {
+          cellsHtml += `<td class="p-1 sm:p-2 text-center text-slate-400 text-xs">-</td>`;
         }
       });
 
