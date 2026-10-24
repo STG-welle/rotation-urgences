@@ -71,8 +71,7 @@ function calculateDailySchedule(startDateStr, weekOffset, stagiaires) {
     dayDate.setDate(dayDate.getDate() + d);
 
     const isWeekend = d === 5 || d === 6;
-    const workingDaysElapsed = weekOffset * 5 + Math.min(d, 4);
-    const cycle = ((workingDaysElapsed % 4) + 4) % 4;
+    const cycle = d % 4;
 
     const roomAssignments = isWeekend
       ? []
@@ -153,4 +152,16 @@ resCustom.daysSchedule.forEach(day => {
   }
 });
 
-console.log('\n✅ TEST VALIDÉ : Choix manuel du groupe respecté et programme toujours parfaitement équilibré !');
+// Vérifier la stabilité du Lundi sur plusieurs semaines consécutives (Semaine 0, 1, 2, 3)
+console.log('\n--- TEST STABILITÉ MULTI-SEMAINES ---');
+for (let offset = 0; offset <= 3; offset++) {
+  const sched = calculateDailySchedule('2026-10-19', offset, customList);
+  const monday = sched.daysSchedule[0];
+  const triage = monday.roomAssignments.find(ra => ra.room === 'Triage');
+  if (!triage.students.includes('Alexandre Petit')) {
+    throw new Error(`En semaine +${offset}, Alexandre Petit (Groupe A) n'est pas en Triage le Lundi !`);
+  }
+}
+console.log('✅ Alexandre Petit (Groupe A) est TOUJOURS en Triage le Lundi (Semaine 0, +1, +2, +3). Aucune dérive !');
+
+console.log('\n✅ TOUS LES TESTS SONT VALIDÉS AVEC SUCCÈS !');

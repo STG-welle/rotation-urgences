@@ -144,7 +144,6 @@
     activateDemoMode();
   }
 
-  // Fonctions de parsing et gestion des groupes personnalisés
   function parseStudentNom(rawNom, rawGroupe) {
     let nom = (rawNom || '').trim();
     let groupe = null;
@@ -153,10 +152,10 @@
       groupe = String(rawGroupe).toUpperCase();
     }
 
-    // Extraction d'un éventuel tag de groupe encodé dans le nom : "[B]" ou "[Groupe B]"
-    const match = nom.match(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i);
-    if (match) {
-      if (!groupe) groupe = match[1].toUpperCase();
+    // Extraction et nettoyage complet de tout tag de groupe encodé dans le nom : "[B]", "[Groupe B]", etc.
+    while (/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i.test(nom)) {
+      const match = nom.match(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i);
+      if (match && !groupe) groupe = match[1].toUpperCase();
       nom = nom.replace(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i, '').trim();
     }
 
@@ -357,9 +356,11 @@
       const isPast = dayDate.getTime() < today.getTime();
       const isWeekend = d === 5 || d === 6; // Samedi = 5, Dimanche = 6
 
-      // Jours ouvrés écoulés (5 jours par semaine : Lun=0, Mar=1, Mer=2, Jeu=3, Ven=4)
-      const workingDaysElapsed = weekNumber * 5 + Math.min(d, 4);
-      const cycle = ((workingDaysElapsed % 4) + 4) % 4;
+      // Cycle quotidien stable et prévisible d'une semaine à l'autre :
+      // Lundi = 0, Mardi = 1, Mercredi = 2, Jeudi = 3, Vendredi = 0 (ou d % 4)
+      // Samedi (d=5) et Dimanche (d=6) sont en R.A.S (Week-end / Repos)
+      // Chaque Lundi démarre toujours avec le Groupe A en Triage, B en Piquage, C en Déchocage, D en Observation
+      const cycle = d % 4;
 
       // Affectation des 4 salles pour ce jour (uniquement du Lundi au Vendredi, Samedi & Dimanche = R.A.S)
       const roomAssignments = isWeekend
@@ -1025,13 +1026,15 @@
         'bg-rose-50 text-rose-900 border-rose-200',
         'bg-purple-50 text-purple-900 border-purple-200'
       ];
+      const startingRooms = ['🔵 Triage', '🟢 Piquage', '🔴 Déchocage', '🟣 Observation'];
       summaryEl.innerHTML = schedule.groups
         .map((grp, idx) => {
-          const name = GROUP_NAMES[idx];
+          const letter = ['A', 'B', 'C', 'D'][idx];
           return `
-            <div class="p-2 rounded-xl border ${groupStyles[idx]} flex flex-col items-center justify-center text-center">
-              <span class="text-[10px] font-black uppercase tracking-wider opacity-80">${name}</span>
-              <span class="text-xs sm:text-sm font-black mt-0.5">${grp.length} stagiaire${grp.length > 1 ? 's' : ''}</span>
+            <div class="p-2 sm:p-2.5 rounded-xl border ${groupStyles[idx]} flex flex-col items-center justify-center text-center">
+              <span class="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Groupe ${letter}</span>
+              <span class="text-[9px] sm:text-[10px] font-bold opacity-80 mt-0.5">Lundi : ${startingRooms[idx]}</span>
+              <span class="text-xs sm:text-sm font-black mt-1">${grp.length} stagiaire${grp.length > 1 ? 's' : ''}</span>
             </div>
           `;
         })
@@ -1079,13 +1082,13 @@
         </div>
 
         <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100">
-          <!-- Sélecteur de groupe -->
+          <!-- Sélecteur de groupe explicite avec salle de départ le Lundi -->
           <select data-admin-group="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Affecter à un groupe spécifique">
-            <option value="" ${!s.groupe ? 'selected' : ''}>Groupe Auto</option>
-            <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A</option>
-            <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B</option>
-            <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C</option>
-            <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D</option>
+            <option value="" ${!s.groupe ? 'selected' : ''}>Auto (Équilibré)</option>
+            <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • Lundi : 🔵 Triage</option>
+            <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • Lundi : 🟢 Piquage</option>
+            <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • Lundi : 🔴 Déchocage</option>
+            <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • Lundi : 🟣 Observation</option>
           </select>
 
           <!-- Toggle Actif / Absent -->
@@ -1141,20 +1144,23 @@
     if (!s) return;
 
     const validGroup = ['A', 'B', 'C', 'D'].includes(newGroup?.toUpperCase()) ? newGroup.toUpperCase() : null;
+    const cleanName = s.nom.replace(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i, '').trim();
+    s.nom = cleanName;
     s.groupe = validGroup;
     saveLocalCustomGroups();
+
+    const roomNames = { 'A': '🔵 Triage', 'B': '🟢 Piquage', 'C': '🔴 Déchocage', 'D': '🟣 Observation' };
 
     if (state.client && state.isSupabaseConnected) {
       try {
         let res = await state.client.from('stagiaires').update({ groupe: validGroup }).eq('id', id);
         if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('groupe'))) {
-          const cleanName = s.nom;
           const tagNom = validGroup ? `${cleanName} [${validGroup}]` : cleanName;
           res = await state.client.from('stagiaires').update({ nom: tagNom }).eq('id', id);
         }
         if (res.error) throw res.error;
         render();
-        showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup}` : `${s.nom} en Groupe Auto`, 'success');
+        showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (${roomNames[validGroup]} le Lundi)` : `${s.nom} en Groupe Auto`, 'success');
       } catch (err) {
         console.warn('Erreur mise à jour groupe Supabase:', err);
         render();
@@ -1415,6 +1421,7 @@
 
     document.getElementById('btn-open-admin')?.addEventListener('click', () => {
       if (state.isAdminAuthenticated) {
+        renderAdminPanel();
         openModal('admin-modal');
       } else {
         openPinModal();
@@ -1428,6 +1435,7 @@
       if (input && input.value.trim() === (state.config.pin_code || '1234')) {
         state.isAdminAuthenticated = true;
         closeModal('pin-modal');
+        renderAdminPanel();
         openModal('admin-modal');
         input.value = '';
         if (err) err.classList.add('hidden');
