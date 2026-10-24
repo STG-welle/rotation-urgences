@@ -19,12 +19,12 @@ begin
 end;
 $$;
 
--- 3. Programmer l'exécution quotidienne chaque matin à 06h00 (Heure de Libreville, UTC+1)
--- 06h00 heure locale à Libreville = 05h00 UTC
+-- 3. Programmer l'exécution quotidienne chaque nuit à Minuit (00h00 Heure de Libreville, UTC+1)
+-- 00h00 heure locale à Libreville = 23h00 UTC
 -- Syntax cron : minute heure jour mois jour_semaine
 select cron.schedule(
   'envoi-planning-quotidien-whatsapp',
-  '0 5 * * *', -- Tous les matins à 05h00 UTC (06h00 à Libreville)
+  '0 23 * * *', -- Tous les soirs à 23h00 UTC (00h00 / Minuit pile à Libreville)
   $$
   select net.http_post(
     -- URL de votre Edge Function Supabase
