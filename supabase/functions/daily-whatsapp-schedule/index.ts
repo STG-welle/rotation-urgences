@@ -204,6 +204,12 @@ serve(async (req: Request) => {
       whatsappMessage = generateFallbackTemplate(scheduleContext);
     }
 
+    // Ajout systématique du lien vers le site pour consulter le planning de toute la semaine
+    const SITE_URL = "https://stg-welle.github.io/rotation-urgences/";
+    if (!whatsappMessage.includes("stg-welle.github.io/rotation-urgences")) {
+      whatsappMessage = whatsappMessage.trim() + `\n\n🌐 *Planning complet de la semaine :*\n${SITE_URL}\n\n🔄 _Diffusion automatique • UrgencesRotation CHUL_`;
+    }
+
     // 9. Envoi WhatsApp (si ce n'est pas une simple prévisualisation)
     let whatsappSendResult: Record<string, unknown> = { status: "preview_only" };
     if (!bodyParams.previewOnly) {
@@ -283,6 +289,9 @@ Consignes strictes de mise en page WhatsApp :
 4. Pour chaque salle : affiche l'emoji, le nom de la salle en gras, les stagiaires en poste sous forme de tirets (• Nom), et une brève ligne de rôle.
 5. Si un stagiaire est absent dans une salle, mentionne-le avec discrétion et bienveillance (ex: _(Absent(e) : Nom)_).
 6. Si c'est le week-end, annonce chaleureusement le repos de service (⚪ R.A.S - Repos de garde) et la reprise le Lundi matin.
+7. Termine obligatoirement en invitant à consulter le planning complet de la semaine avec ce lien exact :
+🌐 *Planning complet de la semaine :*
+https://stg-welle.github.io/rotation-urgences/
 8. Ne rajoute AUCUNE phrase avant ou après le message WhatsApp (pas de "Voici le message", pas de guillemets).
 9. RÈGLE STRICTE : N'utilise JAMAIS de tableaux Markdown avec des barres verticales | (très mal affichés sur WhatsApp mobile). Utilise UNIQUEMENT des listes à puces avec des tirets (• Nom).`;
 
@@ -360,9 +369,10 @@ function generateFallbackTemplate(ctx: {
       }
       msg += `  ℹ️ _${ra.role}_\n\n`;
     });
-    msg += `🩺 *Bonne garde et bon courage à toute l'équipe soignante !*\n`;
+    msg += `🩺 *Bonne garde et bon courage à toute l'équipe soignante !*\n\n`;
   }
 
+  msg += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/\n\n`;
   msg += `🔄 _Diffusion automatique • UrgencesRotation CHUL_`;
   return msg;
 }
