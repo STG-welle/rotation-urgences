@@ -90,8 +90,8 @@ serve(async (req: Request) => {
     if (stagiairesError) throw stagiairesError;
     const rawStagiaires = stagiairesData || [];
 
-    // 4. Parsing robuste des stagiaires et extraction des groupes
-    const stagiaires = rawStagiaires.map((s: { id: string; nom: string; actif?: boolean; groupe?: string }) => {
+    // 4. Parsing robuste des stagiaires et extraction des groupes & équipes
+    const stagiaires = rawStagiaires.map((s: { id: string; nom: string; actif?: boolean; groupe?: string; equipe?: string }) => {
       let nom = (s.nom || "").trim();
       let groupe: string | null = null;
       if (s.groupe && ["A", "B", "C", "D"].includes(String(s.groupe).toUpperCase())) {
@@ -102,40 +102,51 @@ serve(async (req: Request) => {
         if (m && !groupe) groupe = m[1].toUpperCase();
         nom = nom.replace(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i, "").trim();
       }
+      const equipe = (s.equipe === "2" || s.equipe === 2) ? "2" : "1";
       return {
         id: s.id,
         nom,
         actif: s.actif !== false,
-        groupe
+        groupe,
+        equipe
       };
     });
 
-    // 5. Répartition stable des 4 groupes sur la TOTALITÉ des stagiaires
-    // (pour que la suspension d'un collègue ne bouleverse jamais le groupe des autres)
-    const allStagiaires = [...stagiaires].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-    const groups: Array<Array<typeof stagiaires[0]>> = [[], [], [], []];
-    const groupLetterToIdx: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
+    // 5. Répartition stable des 4 groupes par Équipe (Équipe 1 et Équipe 2)
+    function buildCohortGroups(teamMembers: typeof stagiaires) {
+      const sorted = [...teamMembers].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+      const groups: Array<Array<typeof stagiaires[0]>> = [[], [], [], []];
+      const groupLetterToIdx: Record<string, number> = { A: 0, B: 1, C: 2, D: 3 };
 
-    const autoStagiaires: typeof stagiaires = [];
-    allStagiaires.forEach((s) => {
-      if (s.groupe && groupLetterToIdx[s.groupe] !== undefined) {
-        groups[groupLetterToIdx[s.groupe]].push(s);
-      } else {
-        autoStagiaires.push(s);
-      }
-    });
-
-    autoStagiaires.forEach((s) => {
-      let minCount = Infinity;
-      let targetIdx = 0;
-      for (let i = 0; i < 4; i++) {
-        if (groups[i].length < minCount) {
-          minCount = groups[i].length;
-          targetIdx = i;
+      const autoMembers: typeof stagiaires = [];
+      sorted.forEach((s) => {
+        if (s.groupe && groupLetterToIdx[s.groupe] !== undefined) {
+          groups[groupLetterToIdx[s.groupe]].push(s);
+        } else {
+          autoMembers.push(s);
         }
-      }
-      groups[targetIdx].push(s);
-    });
+      });
+
+      autoMembers.forEach((s) => {
+        let minCount = Infinity;
+        let targetIdx = 0;
+        for (let i = 0; i < 4; i++) {
+          if (groups[i].length < minCount) {
+            minCount = groups[i].length;
+            targetIdx = i;
+          }
+        }
+        groups[targetIdx].push(s);
+      });
+      return groups;
+    }
+
+    const team1Members = stagiaires.filter((s) => s.equipe === "1");
+    const team2Members = stagiaires.filter((s) => s.equipe === "2");
+    const hasTeam2 = team2Members.length > 0;
+
+    const groupsTeam1 = buildCohortGroups(team1Members);
+    const groupsTeam2 = hasTeam2 ? buildCohortGroups(team2Members) : [[], [], [], []];
 
     // 6. Calcul de la date du jour (Fuseau horaire de Libreville, Gabon : UTC+1)
     let targetDate = new Date();
@@ -161,22 +172,26 @@ serve(async (req: Request) => {
     // 7. Calcul de la rotation du jour
     // Cycle quotidien invariant chaque semaine : Lundi=0, Mardi=1, Mercredi=2, Jeudi=3, Vendredi=0
     const cycle = dayIndex % 4;
-    const roomAssignments = isWeekend
-      ? []
-      : ROOMS.map((room) => {
-          const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
-          const cohort = groups[assignedGroup] || [];
-          const activeStudents = cohort.filter((s) => s.actif);
-          const absentStudents = cohort.filter((s) => !s.actif);
-          return {
-            room: room.name,
-            emoji: room.emoji,
-            role: room.role,
-            groupName: GROUP_NAMES[assignedGroup],
-            activeStudents: activeStudents.map((s) => s.nom),
-            absentStudents: absentStudents.map((s) => s.nom)
-          };
-        });
+
+    function buildAssignments(cohortGroups: Array<Array<typeof stagiaires[0]>>) {
+      return ROOMS.map((room) => {
+        const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
+        const cohort = cohortGroups[assignedGroup] || [];
+        const activeStudents = cohort.filter((s) => s.actif);
+        const absentStudents = cohort.filter((s) => !s.actif);
+        return {
+          room: room.name,
+          emoji: room.emoji,
+          role: room.role,
+          groupName: GROUP_NAMES[assignedGroup],
+          activeStudents: activeStudents.map((s) => s.nom),
+          absentStudents: absentStudents.map((s) => s.nom)
+        };
+      });
+    }
+
+    const roomAssignmentsTeam1 = isWeekend ? [] : buildAssignments(groupsTeam1);
+    const roomAssignmentsTeam2 = (isWeekend || !hasTeam2) ? [] : buildAssignments(groupsTeam2);
 
     // 8. Génération du message formaté (Groq AI ou Fallback local)
     const scheduleContext = {
@@ -184,7 +199,10 @@ serve(async (req: Request) => {
       hopital: "Centre Hospitalier Universitaire de Libreville (CHUL)",
       service: "Service des Urgences Pédiatriques",
       isWeekend,
-      roomAssignments,
+      hasTeam2,
+      roomAssignments: roomAssignmentsTeam1,
+      roomAssignmentsTeam1,
+      roomAssignmentsTeam2,
       totalActifs: stagiaires.filter((s) => s.actif).length,
       totalAbsents: stagiaires.filter((s) => !s.actif).length
     };
@@ -260,7 +278,16 @@ async function generateWithGroq(
     hopital: string;
     service: string;
     isWeekend: boolean;
-    roomAssignments: Array<{
+    hasTeam2?: boolean;
+    roomAssignmentsTeam1: Array<{
+      room: string;
+      emoji: string;
+      role: string;
+      groupName: string;
+      activeStudents: string[];
+      absentStudents: string[];
+    }>;
+    roomAssignmentsTeam2?: Array<{
       room: string;
       emoji: string;
       role: string;
@@ -272,17 +299,12 @@ async function generateWithGroq(
     totalAbsents: number;
   }
 ): Promise<string> {
-  const prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
-Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format minimaliste, aéré et épuré.
+  let prompt = "";
 
-Données du jour :
-- Date : ${ctx.date}
-- Est-ce le week-end : ${ctx.isWeekend ? "OUI" : "NON"}
-- Répartition :
-${JSON.stringify(ctx.roomAssignments, null, 2)}
+  if (ctx.isWeekend) {
+    prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
+Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format :
 
-FORMAT EXACT REQUIS :
-${ctx.isWeekend ? `
 🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
 *Date : ${ctx.date}*
 
@@ -290,8 +312,17 @@ ${ctx.isWeekend ? `
 _Reprise du service lundi matin._
 
 🌐 *Planning complet de la semaine :*
-https://stg-welle.github.io/rotation-urgences/
-` : `
+https://stg-welle.github.io/rotation-urgences/`;
+  } else if (!ctx.hasTeam2) {
+    prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
+Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format minimaliste, aéré et épuré.
+
+Données du jour :
+- Date : ${ctx.date}
+- Répartition :
+${JSON.stringify(ctx.roomAssignmentsTeam1, null, 2)}
+
+FORMAT EXACT REQUIS :
 🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
 *Date : ${ctx.date}*
 
@@ -317,7 +348,6 @@ https://stg-welle.github.io/rotation-urgences/
 
 🌐 *Planning complet de la semaine :*
 https://stg-welle.github.io/rotation-urgences/
-`}
 
 Consignes strictes :
 1. N'ajoute AUCUNE description de rôle sous les salles.
@@ -326,6 +356,78 @@ Consignes strictes :
 4. Laisse une ligne vide entre chaque bloc de salle.
 5. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
 6. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.`;
+  } else {
+    prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
+Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format minimaliste, aéré et épuré séparant ÉQUIPE 1 et ÉQUIPE 2.
+
+Données du jour :
+- Date : ${ctx.date}
+- Répartition Équipe 1 :
+${JSON.stringify(ctx.roomAssignmentsTeam1, null, 2)}
+- Répartition Équipe 2 :
+${JSON.stringify(ctx.roomAssignmentsTeam2, null, 2)}
+
+FORMAT EXACT REQUIS :
+🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
+*Date : ${ctx.date}*
+
+📌 *ÉQUIPE 1*
+
+🔵 *Triage*
+
+• Nom1
+• Nom2
+
+🟢 *Piquage*
+
+• Nom1
+• Nom2
+
+🔴 *Déchocage*
+
+• Nom1
+• Nom2
+
+🟣 *Observation*
+
+• Nom1
+• Nom2
+
+───────────────
+📌 *ÉQUIPE 2*
+
+🔵 *Triage*
+
+• NomA
+• NomB
+
+🟢 *Piquage*
+
+• NomC
+• NomD
+
+🔴 *Déchocage*
+
+• NomE
+• NomF
+
+🟣 *Observation*
+
+• NomG
+• NomH
+
+🌐 *Planning complet de la semaine :*
+https://stg-welle.github.io/rotation-urgences/
+
+Consignes strictes :
+1. N'ajoute AUCUNE description de rôle sous les salles.
+2. Ne mets PAS les lettres de groupe comme "(Groupe A)". Affiche seulement "🔵 *Triage*", "🟢 *Piquage*", "🔴 *Déchocage*", "🟣 *Observation*".
+3. Laisse une ligne vide entre le titre de la salle et la liste des noms.
+4. Laisse une ligne vide entre chaque bloc de salle.
+5. Sépare Équipe 1 et Équipe 2 par la ligne "───────────────".
+6. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
+7. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.`;
+  }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -346,7 +448,7 @@ Consignes strictes :
         }
       ],
       temperature: 0.1,
-      max_tokens: 600
+      max_tokens: 800
     })
   });
 
@@ -369,7 +471,16 @@ function generateFallbackTemplate(ctx: {
   hopital: string;
   service: string;
   isWeekend: boolean;
-  roomAssignments: Array<{
+  hasTeam2?: boolean;
+  roomAssignmentsTeam1: Array<{
+    room: string;
+    emoji: string;
+    role: string;
+    groupName: string;
+    activeStudents: string[];
+    absentStudents: string[];
+  }>;
+  roomAssignmentsTeam2?: Array<{
     room: string;
     emoji: string;
     role: string;
@@ -384,8 +495,35 @@ function generateFallbackTemplate(ctx: {
   if (ctx.isWeekend) {
     msg += `⚪ *R.A.S - Repos de garde*\n`;
     msg += `_Reprise du service lundi matin._\n\n`;
+  } else if (!ctx.hasTeam2) {
+    ctx.roomAssignmentsTeam1.forEach((ra) => {
+      msg += `${ra.emoji} *${ra.room}*\n\n`;
+      if (ra.activeStudents.length === 0) {
+        msg += `• _(aucun stagiaire actif)_\n\n`;
+      } else {
+        ra.activeStudents.forEach((st) => {
+          msg += `• ${st}\n`;
+        });
+        msg += `\n`;
+      }
+    });
   } else {
-    ctx.roomAssignments.forEach((ra) => {
+    msg += `📌 *ÉQUIPE 1*\n\n`;
+    ctx.roomAssignmentsTeam1.forEach((ra) => {
+      msg += `${ra.emoji} *${ra.room}*\n\n`;
+      if (ra.activeStudents.length === 0) {
+        msg += `• _(aucun stagiaire actif)_\n\n`;
+      } else {
+        ra.activeStudents.forEach((st) => {
+          msg += `• ${st}\n`;
+        });
+        msg += `\n`;
+      }
+    });
+
+    msg += `───────────────\n`;
+    msg += `📌 *ÉQUIPE 2*\n\n`;
+    (ctx.roomAssignmentsTeam2 || []).forEach((ra) => {
       msg += `${ra.emoji} *${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {
         msg += `• _(aucun stagiaire actif)_\n\n`;

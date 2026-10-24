@@ -26,6 +26,8 @@
     },
 
     // Navigation & Affichage
+    selectedEquipe: '1', // Équipe 1 par défaut ('1' ou '2')
+    adminFilterEquipe: '1', // Filtre admin ('1', '2' ou 'all')
     weekOffset: 0,
     simulatedDayOffset: 0, // 0 = temps réel, 1 = simule demain, 2 = après-demain, etc.
     selectedDayIndex: null, // 0 = Lundi, ..., 6 = Dimanche (par défaut = aujourd'hui)
@@ -124,7 +126,8 @@
           return {
             ...s,
             nom: parsed.nom,
-            groupe: parsed.groupe
+            groupe: parsed.groupe,
+            equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1'
           };
         });
         applyLocalCustomGroups();
@@ -206,18 +209,18 @@
       try {
         state.stagiaires = JSON.parse(localStagiaires).map((s) => {
           const parsed = parseStudentNom(s.nom, s.groupe);
-          return { ...s, nom: parsed.nom, groupe: parsed.groupe };
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1' };
         });
       } catch {
         state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
           const parsed = parseStudentNom(s.nom, s.groupe);
-          return { ...s, nom: parsed.nom, groupe: parsed.groupe };
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1' };
         });
       }
     } else {
       state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
         const parsed = parseStudentNom(s.nom, s.groupe);
-        return { ...s, nom: parsed.nom, groupe: parsed.groupe };
+        return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1' };
       });
       saveDemoStagiaires();
     }
@@ -259,6 +262,7 @@
       const parsed = parseStudentNom(newRec.nom, newRec.groupe);
       newRec.nom = parsed.nom;
       newRec.groupe = parsed.groupe;
+      newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : '1';
       if (!state.stagiaires.some((s) => s.id === newRec.id)) {
         state.stagiaires.push(newRec);
         state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
@@ -267,6 +271,7 @@
       const parsed = parseStudentNom(newRec.nom, newRec.groupe);
       newRec.nom = parsed.nom;
       newRec.groupe = parsed.groupe;
+      newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : '1';
       const idx = state.stagiaires.findIndex((s) => s.id === newRec.id);
       if (idx !== -1) state.stagiaires[idx] = newRec;
       state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
@@ -294,7 +299,7 @@
     return monday;
   }
 
-  function calculateDailySchedule(offsetWeeks = state.weekOffset) {
+  function calculateDailySchedule(offsetWeeks = state.weekOffset, targetEquipe = state.selectedEquipe) {
     const today = new Date();
     if (state.simulatedDayOffset) {
       today.setDate(today.getDate() + state.simulatedDayOffset);
@@ -313,10 +318,12 @@
     const msInADay = 24 * 60 * 60 * 1000;
     const weekNumber = Math.floor((targetMonday.getTime() - startMonday.getTime()) / (7 * msInADay));
 
-    // Tous les stagiaires enregistrés (la répartition des groupes est calculée
-    // sur l'ensemble de la promotion afin que la suspension/absence d'une personne
-    // ne vienne JAMAIS modifier le groupe ou la salle des autres stagiaires)
-    const allStagiaires = [...state.stagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    // Stagiaires de l'équipe ciblée ('1' ou '2')
+    // La répartition des groupes et de la rotation est calculée de façon autonome
+    // pour chaque équipe, assurant que l'Équipe 1 reste 100% stable et inchangée.
+    const teamKey = (targetEquipe === '2' || targetEquipe === 2) ? '2' : '1';
+    const teamStagiaires = state.stagiaires.filter((s) => (s.equipe || '1') === teamKey);
+    const allStagiaires = [...teamStagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
     const activeStagiaires = allStagiaires.filter((s) => s.actif === true);
 
     // 4 Groupes stables (A, B, C, D)
@@ -420,13 +427,15 @@
     }
 
     return {
+      equipe: teamKey,
       targetMonday,
       targetSunday,
       weekNumber: weekNumber + 1,
       isCurrentWeek: offsetWeeks === 0,
       activeCount: activeStagiaires.length,
-      inactiveCount: state.stagiaires.length - activeStagiaires.length,
+      inactiveCount: allStagiaires.length - activeStagiaires.length,
       activeStagiaires,
+      allStagiaires,
       daysData,
       groups,
       studentGroupMap,
@@ -476,15 +485,41 @@
   // RENDU DE L'INTERFACE
   // ============================================================================
   function render() {
-    const schedule = calculateDailySchedule(state.weekOffset);
+    const schedule = calculateDailySchedule(state.weekOffset, state.selectedEquipe);
 
     renderHeaderStatus();
     renderWeekHeader(schedule);
+    renderTeamSwitcher(schedule);
     renderSearchBanner(schedule);
     renderViewSwitcher();
     renderDayView(schedule);
     renderTimetable(schedule);
     renderAdminPanel();
+  }
+
+  function renderTeamSwitcher(schedule) {
+    const btn1 = document.getElementById('btn-team-1');
+    const btn2 = document.getElementById('btn-team-2');
+    const badge1 = document.getElementById('badge-team-1-count');
+    const badge2 = document.getElementById('badge-team-2-count');
+    const teamLabel = document.getElementById('team-student-label');
+
+    const count1 = state.stagiaires.filter((s) => (s.equipe || '1') === '1' && s.actif).length;
+    const count2 = state.stagiaires.filter((s) => (s.equipe || '1') === '2' && s.actif).length;
+
+    if (badge1) badge1.textContent = count1;
+    if (badge2) badge2.textContent = count2;
+    if (teamLabel) teamLabel.textContent = `actifs en Équipe ${state.selectedEquipe}`;
+
+    if (btn1 && btn2) {
+      if (state.selectedEquipe === '1') {
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
+      } else {
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
+      }
+    }
   }
 
 
@@ -587,30 +622,37 @@
         return;
       }
 
-      const todayIndex = schedule.daysData.findIndex((d) => d.isToday);
+      const studentEquipe = found.equipe || '1';
+      const studentSchedule = studentEquipe === schedule.equipe ? schedule : calculateDailySchedule(state.weekOffset, studentEquipe);
+
+      const todayIndex = studentSchedule.daysData.findIndex((d) => d.isToday);
       const dayToUse = todayIndex !== -1 ? todayIndex : 0;
       const tomorrowIndex = (dayToUse + 1) % 7;
 
-      const todayRoom = schedule.getStudentRoomOnDay(found.id, dayToUse);
-      const tomorrowRoom = schedule.getStudentRoomOnDay(found.id, tomorrowIndex);
-      const dayNameToday = schedule.daysData[dayToUse].dayInfo.label;
-      const dayNameTomorrow = schedule.daysData[tomorrowIndex].dayInfo.label;
+      const todayRoom = studentSchedule.getStudentRoomOnDay(found.id, dayToUse);
+      const tomorrowRoom = studentSchedule.getStudentRoomOnDay(found.id, tomorrowIndex);
+      const dayNameToday = studentSchedule.daysData[dayToUse].dayInfo.label;
+      const dayNameTomorrow = studentSchedule.daysData[tomorrowIndex].dayInfo.label;
 
-      const isTodayWeekend = schedule.daysData[dayToUse].isWeekend;
-      const isTomorrowWeekend = schedule.daysData[tomorrowIndex].isWeekend;
+      const isTodayWeekend = studentSchedule.daysData[dayToUse].isWeekend;
+      const isTomorrowWeekend = studentSchedule.daysData[tomorrowIndex].isWeekend;
 
       let todayText = '';
       if (isTodayWeekend) {
         todayText = `<span class="font-extrabold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 border border-slate-300">⚪ R.A.S (Week-end / Repos)</span>`;
-      } else {
+      } else if (todayRoom) {
         todayText = `au <span class="font-black px-2 py-0.5 rounded-md ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>`;
+      } else {
+        todayText = `en rotation`;
       }
 
       let tomorrowText = '';
       if (isTomorrowWeekend) {
         tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-600">⚪ R.A.S (Week-end)</span>`;
-      } else {
+      } else if (tomorrowRoom) {
         tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span>`;
+      } else {
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-700">En rotation</span>`;
       }
 
       banner.classList.remove('hidden');
@@ -622,8 +664,8 @@
             </svg>
           </div>
           <div class="leading-snug">
-            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)}</span> :
-            ${schedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
+            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)} <span class="text-[10px] text-blue-700 font-extrabold bg-blue-100 px-1.5 py-0.2 rounded-md">Équipe ${studentEquipe}</span></span> :
+            ${studentSchedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
             ${todayText}.
           </div>
         </div>
@@ -766,16 +808,16 @@
       return;
     }
 
-    if (state.stagiaires.length === 0) {
+    if (schedule.allStagiaires.length === 0) {
       cardsGrid.innerHTML = `
         <div class="col-span-full bg-white rounded-3xl p-8 text-center border border-slate-300 shadow-xs">
-          <div class="w-12 h-12 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-slate-200">
-            <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-blue-200">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
             </svg>
           </div>
-          <h3 class="text-base font-black text-slate-900">Aucun stagiaire dans la base de données</h3>
-          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> en haut à droite pour ajouter vos collègues.</p>
+          <h3 class="text-base font-black text-slate-900">Aucun stagiaire dans l'Équipe ${schedule.equipe}</h3>
+          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Vous pouvez ajouter des collègues dans l'Équipe ${schedule.equipe} ou modifier leur affectation depuis le bouton <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> en haut.</p>
         </div>
       `;
       return;
@@ -917,22 +959,22 @@
 
     headerRow.innerHTML = headerHtml;
 
-    // 2. Déterminer la liste des étudiants à afficher
+    // 2. Déterminer la liste des étudiants à afficher pour cette équipe
     const query = state.searchQuery.trim().toLowerCase();
-    const sortedStudents = [...state.stagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    const sortedStudents = [...schedule.allStagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 
     if (sortedStudents.length === 0) {
       tbody.innerHTML = `
         <tr>
           <td colspan="8" class="p-8 text-center text-xs text-slate-500 font-semibold bg-slate-50/50">
             <div class="max-w-md mx-auto space-y-2">
-              <div class="w-10 h-10 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center mx-auto mb-2">
-                <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <div class="w-10 h-10 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center mx-auto mb-2">
+                <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
               </div>
-              <p class="font-bold text-slate-700 text-sm">Aucun stagiaire dans la base de données.</p>
-              <p class="text-xs text-slate-500">Accédez à l'espace <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> pour configurer la liste des étudiants.</p>
+              <p class="font-bold text-slate-700 text-sm">Aucun stagiaire dans l'Équipe ${schedule.equipe}.</p>
+              <p class="text-xs text-slate-500">Accédez à l'espace <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> pour configurer ou ajouter des étudiants dans l'Équipe ${schedule.equipe}.</p>
             </div>
           </td>
         </tr>
@@ -1028,15 +1070,36 @@
     const dateInput = document.getElementById('admin-start-date-input');
     const summaryEl = document.getElementById('admin-groups-summary');
 
+    const tabTeam1 = document.getElementById('admin-tab-team-1');
+    const tabTeam2 = document.getElementById('admin-tab-team-2');
+    const tabAll = document.getElementById('admin-tab-all');
+    const tabTeam1Count = document.getElementById('admin-tab-team-1-count');
+    const tabTeam2Count = document.getElementById('admin-tab-team-2-count');
+    const tabAllCount = document.getElementById('admin-tab-all-count');
+
     if (dateInput && state.config.date_debut_stage) {
       dateInput.value = state.config.date_debut_stage.substring(0, 10);
     }
 
-    if (!list) return;
+    const countTeam1 = state.stagiaires.filter((s) => (s.equipe || '1') === '1').length;
+    const countTeam2 = state.stagiaires.filter((s) => (s.equipe || '1') === '2').length;
+    const countAll = state.stagiaires.length;
 
-    const schedule = calculateDailySchedule(state.weekOffset);
+    if (tabTeam1Count) tabTeam1Count.textContent = countTeam1;
+    if (tabTeam2Count) tabTeam2Count.textContent = countTeam2;
+    if (tabAllCount) tabAllCount.textContent = countAll;
 
-    // Résumé de la répartition des 4 groupes
+    const activeTabClass = 'flex-1 py-1.5 px-2 rounded-lg text-xs font-black transition bg-white text-blue-900 shadow-2xs border border-blue-200';
+    const inactiveTabClass = 'flex-1 py-1.5 px-2 rounded-lg text-xs font-bold transition text-slate-600 hover:text-slate-900 hover:bg-white/50';
+
+    if (tabTeam1) tabTeam1.className = state.adminFilterEquipe === '1' ? activeTabClass : inactiveTabClass;
+    if (tabTeam2) tabTeam2.className = state.adminFilterEquipe === '2' ? activeTabClass : inactiveTabClass;
+    if (tabAll) tabAll.className = state.adminFilterEquipe === 'all' ? activeTabClass : inactiveTabClass;
+
+    const focusedTeam = state.adminFilterEquipe === '2' ? '2' : '1';
+    const schedule = calculateDailySchedule(state.weekOffset, focusedTeam);
+
+    // Résumé de la répartition des 4 groupes pour l'équipe en cours
     if (summaryEl) {
       const groupStyles = [
         'bg-blue-50 text-blue-900 border-blue-200',
@@ -1050,7 +1113,7 @@
           const letter = ['A', 'B', 'C', 'D'][idx];
           return `
             <div class="p-2 sm:p-2.5 rounded-xl border ${groupStyles[idx]} flex flex-col items-center justify-center text-center">
-              <span class="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Groupe ${letter}</span>
+              <span class="text-[10px] sm:text-[11px] font-black uppercase tracking-wider">Groupe ${letter} (Éq. ${focusedTeam})</span>
               <span class="text-[9px] sm:text-[10px] font-bold opacity-80 mt-0.5">Lundi : ${startingRooms[idx]}</span>
               <span class="text-xs sm:text-sm font-black mt-1">${grp.length} stagiaire${grp.length > 1 ? 's' : ''}</span>
             </div>
@@ -1059,24 +1122,42 @@
         .join('');
     }
 
-    const total = state.stagiaires.length;
-    const active = state.stagiaires.filter((s) => s.actif).length;
+    if (!list) return;
+
+    let displayStudents = state.stagiaires;
+    if (state.adminFilterEquipe === '1') {
+      displayStudents = state.stagiaires.filter((s) => (s.equipe || '1') === '1');
+    } else if (state.adminFilterEquipe === '2') {
+      displayStudents = state.stagiaires.filter((s) => (s.equipe || '1') === '2');
+    }
+
+    const total = displayStudents.length;
+    const active = displayStudents.filter((s) => s.actif).length;
     const inactive = total - active;
 
     if (totalSpan) totalSpan.textContent = total;
     if (activeSpan) activeSpan.textContent = active;
     if (inactiveSpan) inactiveSpan.textContent = inactive;
 
-    const sorted = [...state.stagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    const sorted = [...displayStudents].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+
+    if (sorted.length === 0) {
+      list.innerHTML = `
+        <div class="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+          Aucun stagiaire dans cette sélection. Utilisez le formulaire ci-dessus pour en ajouter.
+        </div>
+      `;
+      return;
+    }
 
     list.innerHTML = sorted
-      .map(
-        (s) => {
-          const gIdx = schedule.studentGroupMap.get(s.id);
-          const currentGroupLetter = gIdx !== undefined ? ['A', 'B', 'C', 'D'][gIdx] : '?';
-          const isManual = Boolean(s.groupe);
+      .map((s) => {
+        const studentTeam = s.equipe || '1';
+        const teamSchedule = calculateDailySchedule(state.weekOffset, studentTeam);
+        const gIdx = teamSchedule.studentGroupMap.get(s.id);
+        const currentGroupLetter = gIdx !== undefined ? ['A', 'B', 'C', 'D'][gIdx] : '?';
 
-          return `
+        return `
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-xl border ${
         s.actif ? 'bg-white border-slate-200' : 'bg-slate-100 border-dashed border-slate-300 opacity-60'
       }">
@@ -1085,21 +1166,32 @@
             ${getInitials(s.nom)}
           </span>
           <div class="min-w-0">
-            <span class="text-xs sm:text-sm font-bold text-slate-900 truncate block">${escapeHtml(s.nom)}</span>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="text-xs sm:text-sm font-bold text-slate-900 truncate block">${escapeHtml(s.nom)}</span>
+              <span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${studentTeam === '2' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}">
+                Équipe ${studentTeam}
+              </span>
+            </div>
             <div class="text-[10px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold">
               ${s.actif ? 'Présent • En rotation active' : 'Absent • Exclu temporairement'}
             </div>
           </div>
         </div>
 
-        <div class="flex items-center justify-between sm:justify-end gap-2 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+        <div class="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-wrap">
+          <!-- Sélecteur d'équipe -->
+          <select data-admin-equipe="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Changer d'équipe">
+            <option value="1" ${studentTeam === '1' ? 'selected' : ''}>Équipe 1</option>
+            <option value="2" ${studentTeam === '2' ? 'selected' : ''}>Équipe 2</option>
+          </select>
+
           <!-- Sélecteur de groupe explicite avec salle de départ le Lundi -->
           <select data-admin-group="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Affecter à un groupe spécifique">
             <option value="" ${!s.groupe ? 'selected' : ''}>Auto (Équilibré)</option>
-            <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • Lundi : 🔵 Triage</option>
-            <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • Lundi : 🟢 Piquage</option>
-            <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • Lundi : 🔴 Déchocage</option>
-            <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • Lundi : 🟣 Observation</option>
+            <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • 🔵 Triage</option>
+            <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • 🟢 Piquage</option>
+            <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • 🔴 Déchocage</option>
+            <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • 🟣 Observation</option>
           </select>
 
           <!-- Toggle Actif / Absent -->
@@ -1117,9 +1209,16 @@
         </div>
       </div>
     `;
-        }
-      )
+      })
       .join('');
+
+    list.querySelectorAll('[data-admin-equipe]').forEach((sel) => {
+      sel.addEventListener('change', async () => {
+        const id = sel.getAttribute('data-admin-equipe');
+        const val = sel.value;
+        await changeStagiaireEquipe(id, val);
+      });
+    });
 
     list.querySelectorAll('[data-admin-group]').forEach((sel) => {
       sel.addEventListener('change', async () => {
@@ -1214,14 +1313,40 @@
     }
   }
 
-  async function addStagiaire(nom, groupe = '') {
-    const trimmed = nom.trim();
-    if (!trimmed) return;
-    const validGroup = ['A', 'B', 'C', 'D'].includes(groupe?.toUpperCase()) ? groupe.toUpperCase() : null;
+  async function changeStagiaireEquipe(id, newEquipe) {
+    const s = state.stagiaires.find((item) => item.id === id);
+    if (!s) return;
+
+    const validEquipe = (newEquipe === '2' || newEquipe === 2) ? '2' : '1';
+    s.equipe = validEquipe;
 
     if (state.client && state.isSupabaseConnected) {
       try {
-        let payload = { nom: trimmed, actif: true };
+        const { error } = await state.client.from('stagiaires').update({ equipe: validEquipe }).eq('id', id);
+        if (error) throw error;
+        render();
+        showToast(`${s.nom} transféré(e) dans l'Équipe ${validEquipe}`, 'success');
+      } catch (err) {
+        console.warn('Erreur mise à jour equipe Supabase:', err);
+        render();
+        showToast(`${s.nom} transféré(e) dans l'Équipe ${validEquipe} (Local)`, 'info');
+      }
+    } else {
+      saveDemoStagiaires();
+      render();
+      showToast(`${s.nom} transféré(e) dans l'Équipe ${validEquipe} (Démo)`, 'success');
+    }
+  }
+
+  async function addStagiaire(nom, groupe = '', equipe = '1') {
+    const trimmed = nom.trim();
+    if (!trimmed) return;
+    const validGroup = ['A', 'B', 'C', 'D'].includes(groupe?.toUpperCase()) ? groupe.toUpperCase() : null;
+    const validEquipe = (equipe === '2' || equipe === 2) ? '2' : '1';
+
+    if (state.client && state.isSupabaseConnected) {
+      try {
+        let payload = { nom: trimmed, actif: true, equipe: validEquipe };
         if (validGroup) payload.groupe = validGroup;
 
         let res = await state.client.from('stagiaires').insert([payload]).select().single();
@@ -1231,23 +1356,24 @@
           const parsed = parseStudentNom(data.nom, data.groupe);
           data.nom = parsed.nom;
           data.groupe = parsed.groupe;
+          data.equipe = (data.equipe === '2' || data.equipe === 2) ? '2' : '1';
           state.stagiaires.push(data);
           state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
           saveLocalCustomGroups();
         }
         render();
-        showToast(`${trimmed} ajouté${validGroup ? ' (Groupe ' + validGroup + ')' : ''}`, 'success');
+        showToast(`${trimmed} ajouté(e) dans l'Équipe ${validEquipe}${validGroup ? ' (Groupe ' + validGroup + ')' : ''}`, 'success');
       } catch (err) {
         showToast('Erreur ajout stagiaire', 'error');
       }
     } else {
-      const newStudent = { id: 'demo-' + Date.now(), nom: trimmed, actif: true, groupe: validGroup };
+      const newStudent = { id: 'demo-' + Date.now(), nom: trimmed, actif: true, groupe: validGroup, equipe: validEquipe };
       state.stagiaires.push(newStudent);
       state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
       saveDemoStagiaires();
       saveLocalCustomGroups();
       render();
-      showToast(`${trimmed} ajouté (Démo)`, 'success');
+      showToast(`${trimmed} ajouté(e) dans l'Équipe ${validEquipe} (Démo)`, 'success');
     }
   }
 
@@ -1309,16 +1435,54 @@
 
   // 1. Copier le planning d'aujourd'hui
   function copyWhatsAppToday() {
-    const schedule = calculateDailySchedule(state.weekOffset);
-    const todayIndex = schedule.daysData.findIndex((d) => d.isToday);
-    const day = schedule.daysData[todayIndex !== -1 ? todayIndex : 0];
+    const today = new Date();
+    if (state.simulatedDayOffset) {
+      today.setDate(today.getDate() + state.simulatedDayOffset);
+    }
+    const day = today.getDay();
+    const dayIdx = day === 0 ? 6 : day - 1;
 
-    let text = `🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*\n*Date : ${day.dayInfo.label} ${day.dateFormatted}*\n\n`;
+    const team1Schedule = calculateDailySchedule(state.weekOffset, '1');
+    const day1 = team1Schedule.daysData[dayIdx];
 
-    if (day.isWeekend) {
+    const team2Members = state.stagiaires.filter((s) => (s.equipe || '1') === '2');
+    const hasTeam2 = team2Members.length > 0;
+
+    let text = `🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*\n*Date : ${day1.dayInfo.label} ${day1.dateFormatted}*\n\n`;
+
+    if (day1.isWeekend) {
       text += `⚪ *R.A.S - Repos de garde*\n_Reprise du service lundi matin._\n\n`;
+    } else if (!hasTeam2) {
+      day1.roomAssignments.forEach((ra) => {
+        text += `${ra.emoji} *${ra.name}*\n\n`;
+        if (ra.students.length === 0) {
+          text += `• _(aucun stagiaire)_\n\n`;
+        } else {
+          ra.students.forEach((st) => {
+            text += `• ${st.nom}\n`;
+          });
+          text += `\n`;
+        }
+      });
     } else {
-      day.roomAssignments.forEach((ra) => {
+      const team2Schedule = calculateDailySchedule(state.weekOffset, '2');
+      const day2 = team2Schedule.daysData[dayIdx];
+
+      text += `📌 *ÉQUIPE 1*\n\n`;
+      day1.roomAssignments.forEach((ra) => {
+        text += `${ra.emoji} *${ra.name}*\n\n`;
+        if (ra.students.length === 0) {
+          text += `• _(aucun stagiaire)_\n\n`;
+        } else {
+          ra.students.forEach((st) => {
+            text += `• ${st.nom}\n`;
+          });
+          text += `\n`;
+        }
+      });
+
+      text += `───────────────\n📌 *ÉQUIPE 2*\n\n`;
+      day2.roomAssignments.forEach((ra) => {
         text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
           text += `• _(aucun stagiaire)_\n\n`;
@@ -1402,12 +1566,44 @@
       }, 100);
     });
 
+    // Sélecteur d'Équipe (Équipe 1 vs Équipe 2)
+    document.getElementById('btn-team-1')?.addEventListener('click', () => {
+      state.selectedEquipe = '1';
+      render();
+    });
+
+    document.getElementById('btn-team-2')?.addEventListener('click', () => {
+      state.selectedEquipe = '2';
+      render();
+    });
+
+    // Onglets de filtrage par équipe dans l'espace Admin
+    document.getElementById('admin-tab-team-1')?.addEventListener('click', () => {
+      state.adminFilterEquipe = '1';
+      renderAdminPanel();
+    });
+
+    document.getElementById('admin-tab-team-2')?.addEventListener('click', () => {
+      state.adminFilterEquipe = '2';
+      renderAdminPanel();
+    });
+
+    document.getElementById('admin-tab-all')?.addEventListener('click', () => {
+      state.adminFilterEquipe = 'all';
+      renderAdminPanel();
+    });
+
     // Recherche
     const searchInput = document.getElementById('student-search-input');
     searchInput?.addEventListener('input', (e) => {
-      state.searchQuery = e.target.value;
-      if (e.target.value.trim()) {
-        localStorage.setItem('urgences_my_student_name', e.target.value.trim());
+      const q = e.target.value;
+      state.searchQuery = q;
+      if (q.trim()) {
+        localStorage.setItem('urgences_my_student_name', q.trim());
+        const match = state.stagiaires.find((s) => s.nom.toLowerCase().includes(q.trim().toLowerCase()));
+        if (match && (match.equipe || '1') !== state.selectedEquipe) {
+          state.selectedEquipe = match.equipe || '1';
+        }
       } else {
         localStorage.removeItem('urgences_my_student_name');
       }
@@ -1465,9 +1661,11 @@
       e.preventDefault();
       const nameInput = document.getElementById('admin-new-name-input');
       const groupSelect = document.getElementById('admin-new-group-select');
+      const equipeSelect = document.getElementById('admin-new-equipe-select');
       if (nameInput && nameInput.value.trim()) {
         const groupVal = groupSelect ? groupSelect.value : '';
-        await addStagiaire(nameInput.value.trim(), groupVal);
+        const equipeVal = equipeSelect ? equipeSelect.value : (state.adminFilterEquipe === '2' ? '2' : '1');
+        await addStagiaire(nameInput.value.trim(), groupVal, equipeVal);
         nameInput.value = '';
         if (groupSelect) groupSelect.value = '';
       }
