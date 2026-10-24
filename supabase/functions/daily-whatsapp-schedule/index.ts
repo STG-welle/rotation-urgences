@@ -283,8 +283,8 @@ Consignes strictes de mise en page WhatsApp :
 4. Pour chaque salle : affiche l'emoji, le nom de la salle en gras, les stagiaires en poste sous forme de tirets (• Nom), et une brève ligne de rôle.
 5. Si un stagiaire est absent dans une salle, mentionne-le avec discrétion et bienveillance (ex: _(Absent(e) : Nom)_).
 6. Si c'est le week-end, annonce chaleureusement le repos de service (⚪ R.A.S - Repos de garde) et la reprise le Lundi matin.
-7. Termine par une phrase d'encouragement dynamique et professionnelle pour l'équipe soignante.
-8. Ne rajoute AUCUNE phrase avant ou après le message WhatsApp (pas de "Voici le message", pas de guillemets).`;
+8. Ne rajoute AUCUNE phrase avant ou après le message WhatsApp (pas de "Voici le message", pas de guillemets).
+9. RÈGLE STRICTE : N'utilise JAMAIS de tableaux Markdown avec des barres verticales | (très mal affichés sur WhatsApp mobile). Utilise UNIQUEMENT des listes à puces avec des tirets (• Nom).`;
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -293,18 +293,18 @@ Consignes strictes de mise en page WhatsApp :
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b",
       messages: [
         {
           role: "system",
-          content: "Tu es un assistant hospitalier d'élite expert en communication soignante et médicale pour le CHUL. Tu rédiges des messages WhatsApp parfaitement lisibles et impeccablement mis en forme."
+          content: "Tu es un assistant hospitalier d'élite expert en communication soignante et médicale pour le CHUL. Tu rédiges des messages WhatsApp parfaitement lisibles sur smartphone sans tableaux pipes."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      temperature: 0.4,
+      temperature: 0.3,
       max_tokens: 900
     })
   });
