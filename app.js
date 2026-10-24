@@ -993,17 +993,12 @@
         <tr class="timetable-row ${isMatch ? 'highlighted' : ''}">
           <!-- Nom de l'étudiant (Colonne fixe) -->
           <td class="p-2 sm:p-3 sticky-col font-semibold text-xs sm:text-sm text-slate-900">
-            <div class="flex items-center justify-between gap-1">
-              <div class="flex items-center gap-1.5 sm:gap-2 truncate">
-                <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-[10px] sm:text-xs shrink-0 border border-slate-200">
-                  ${getInitials(student.nom)}
-                </span>
-                <span class="truncate text-[11px] sm:text-xs md:text-sm ${isMatch ? 'text-amber-950 font-black' : ''}">
-                  ${escapeHtml(student.nom)}
-                </span>
-              </div>
-              <span class="text-[8px] sm:text-[9px] font-extrabold px-1 sm:px-1.5 py-0.5 ${student.groupe ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200'} rounded shrink-0 hidden sm:inline-block" title="${student.groupe ? 'Groupe fixé manuellement par l\'administrateur' : 'Groupe équilibré automatiquement'}">
-                ${groupName}${student.groupe ? ' (Fixé)' : ''}
+            <div class="flex items-center gap-1.5 sm:gap-2 truncate">
+              <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-[10px] sm:text-xs shrink-0 border border-slate-200">
+                ${getInitials(student.nom)}
+              </span>
+              <span class="truncate text-[11px] sm:text-xs md:text-sm ${isMatch ? 'text-amber-950 font-black' : ''}">
+                ${escapeHtml(student.nom)}
               </span>
             </div>
           </td>
@@ -1083,14 +1078,7 @@
             ${getInitials(s.nom)}
           </span>
           <div class="min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <span class="text-xs sm:text-sm font-bold text-slate-900 truncate">${escapeHtml(s.nom)}</span>
-              <span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded ${
-                isManual ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200'
-              }">
-                Groupe ${currentGroupLetter}${isManual ? ' (Fixé)' : ' (Auto)'}
-              </span>
-            </div>
+            <span class="text-xs sm:text-sm font-bold text-slate-900 truncate block">${escapeHtml(s.nom)}</span>
             <div class="text-[10px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold">
               ${s.actif ? 'Présent • En rotation active' : 'Absent • Exclu temporairement'}
             </div>
