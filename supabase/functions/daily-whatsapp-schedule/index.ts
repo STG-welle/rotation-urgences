@@ -157,7 +157,8 @@ serve(async (req: Request) => {
     } else {
       // Décalage pour obtenir l'heure locale de Libreville (UTC+1)
       const nowUtc = new Date();
-      targetDate = new Date(nowUtc.getTime() + 1 * 60 * 60 * 1000);
+      // Buffer de 2 minutes pour sécuriser les déclenchements pg_cron de 23h00 UTC
+      targetDate = new Date(nowUtc.getTime() + (1 * 60 + 2) * 60 * 1000);
     }
 
     // Jour de la semaine : 0 = Lundi, ..., 6 = Dimanche
@@ -476,7 +477,8 @@ Consignes strictes :
 3. Laisse une ligne vide entre le titre de la salle et la liste des noms.
 4. Laisse une ligne vide entre chaque bloc de salle.
 5. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
-6. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.`;
+6. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.
+7. Si une salle ne compte aucun stagiaire actif (tableau activeStudents vide), affiche impérativement "• _(aucun stagiaire en poste)_" sous le titre de cette salle. Ne laisse JAMAIS un titre de salle vide.`;
   } else {
     prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
 Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format minimaliste, aéré et épuré séparant la MATINÉE et l'APRÈS-MIDI.
@@ -547,7 +549,8 @@ Consignes strictes :
 4. Laisse une ligne vide entre chaque bloc de salle.
 5. Sépare la Matinée et l'Après-midi par la ligne "───────────────".
 6. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
-7. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.`;
+7. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.
+8. Si une salle ne compte aucun stagiaire actif (tableau activeStudents vide), affiche impérativement "• _(aucun stagiaire en poste)_" sous le titre de cette salle. Ne laisse JAMAIS un titre de salle vide.`;
   }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {

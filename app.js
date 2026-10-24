@@ -1687,14 +1687,17 @@
     }
   }
 
-  // 1. Copier le planning d'aujourd'hui
+  // 1. Copier le planning d'aujourd'hui (ou du jour sélectionné)
   function copyWhatsAppToday() {
     const today = new Date();
     if (state.simulatedDayOffset) {
       today.setDate(today.getDate() + state.simulatedDayOffset);
     }
     const day = today.getDay();
-    const dayIdx = day === 0 ? 6 : day - 1;
+    const currentDayIdx = day === 0 ? 6 : day - 1;
+    const dayIdx = (state.selectedDayIndex !== null && state.selectedDayIndex >= 0 && state.selectedDayIndex <= 6)
+      ? state.selectedDayIndex
+      : currentDayIdx;
 
     const team1Schedule = calculateDailySchedule(state.weekOffset, '1');
     const day1 = team1Schedule.daysData[dayIdx];
@@ -1708,11 +1711,11 @@
       text += `⚪ *R.A.S - Repos de garde*\n_Reprise du service lundi matin._\n\n`;
     } else if (!hasTeam2) {
       const shift = team1Schedule.currentTeamShift;
-      text += `${shift.emoji} *${shift.label.toUpperCase()} • ÉQUIPE 1*\n\n`;
+      text += `${shift.emoji} *${shift.label.toUpperCase()} • ÉQUIPE 1* (${shift.shift === 'matin' ? '07h30 - 14h30' : '14h00 - 20h30'})\n\n`;
       day1.roomAssignments.forEach((ra) => {
         text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
-          text += `• _(aucun stagiaire actif)_\n\n`;
+          text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
           ra.students.forEach((st) => {
             text += `• ${st.nom}\n`;
@@ -1735,11 +1738,11 @@
         : { name: 'ÉQUIPE 1', day: day1 };
 
       // 1. Matinée
-      text += `☀️ *MATINÉE • ${morningTeam.name}*\n\n`;
+      text += `☀️ *MATINÉE • ${morningTeam.name}* (07h30 - 14h30)\n\n`;
       morningTeam.day.roomAssignments.forEach((ra) => {
         text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
-          text += `• _(aucun stagiaire actif)_\n\n`;
+          text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
           ra.students.forEach((st) => {
             text += `• ${st.nom}\n`;
@@ -1752,11 +1755,11 @@
       text += `───────────────\n`;
 
       // 3. Après-midi
-      text += `🌙 *APRÈS-MIDI • ${afternoonTeam.name}*\n\n`;
+      text += `🌙 *APRÈS-MIDI • ${afternoonTeam.name}* (14h00 - 20h30)\n\n`;
       afternoonTeam.day.roomAssignments.forEach((ra) => {
         text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
-          text += `• _(aucun stagiaire actif)_\n\n`;
+          text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
           ra.students.forEach((st) => {
             text += `• ${st.nom}\n`;
@@ -1773,26 +1776,59 @@
 
   // 2. Copier le planning de la semaine complète
   function copyWhatsAppWeek() {
-    const schedule = calculateDailySchedule(state.weekOffset);
-    const s = formatDateShort(schedule.targetMonday);
-    const e = formatDateShort(schedule.targetSunday);
+    const team1Schedule = calculateDailySchedule(state.weekOffset, '1');
+    const team2Members = state.stagiaires.filter((s) => (s.equipe || '1') === '2');
+    const hasTeam2 = team2Members.length > 0;
+    const team2Schedule = hasTeam2 ? calculateDailySchedule(state.weekOffset, '2') : null;
 
-    let text = `🏥 *EMPLOI DU TEMPS - SEMAINE DU ${s.toUpperCase()} AU ${e.toUpperCase()}*\n\n`;
+    const s = formatDateShort(team1Schedule.targetMonday);
+    const e = formatDateShort(team1Schedule.targetSunday);
 
-    schedule.daysData.forEach((day) => {
-      text += `📅 *${day.dayInfo.label.toUpperCase()} ${day.dateFormatted} :*\n`;
-      if (day.isWeekend) {
-        text += `  ⚪ *R.A.S* (Repos pour tous les stagiaires)\n\n`;
+    let text = `🏥 *CHUL • SERVICE DES URGENCES PÉDIATRIQUES*\n`;
+    text += `📋 *Planning de la semaine du ${s.toUpperCase()} au ${e.toUpperCase()}*\n`;
+    if (hasTeam2) {
+      const t1Shift = team1Schedule.shifts.team1;
+      const t2Shift = team1Schedule.shifts.team2;
+      text += `• Équipe 1 : ${t1Shift.badgeLabel} (${t1Shift.shift === 'matin' ? '07h30-14h30' : '14h00-20h30'})\n`;
+      text += `• Équipe 2 : ${t2Shift.badgeLabel} (${t2Shift.shift === 'matin' ? '07h30-14h30' : '14h00-20h30'})\n\n`;
+    } else {
+      const shift = team1Schedule.currentTeamShift;
+      text += `• Créneau : ${shift.badgeLabel}\n\n`;
+    }
+
+    for (let d = 0; d < 7; d++) {
+      const d1 = team1Schedule.daysData[d];
+      text += `📅 *${d1.dayInfo.label.toUpperCase()} ${d1.dateFormatted} :*\n`;
+      if (d1.isWeekend) {
+        text += `  ⚪ *R.A.S* (Repos de garde pour tous les stagiaires)\n\n`;
+      } else if (!hasTeam2) {
+        d1.roomAssignments.forEach((ra) => {
+          const names = ra.students.map((st) => st.nom).join(' & ');
+          text += `  ${ra.emoji} *${ra.name} :* ${names || '(aucun)'}\n`;
+        });
+        text += `\n`;
       } else {
-        day.roomAssignments.forEach((ra) => {
-          const names = ra.students.map((st) => st.nom).join(', ');
-          text += `  ${ra.emoji} *${ra.name} :* ${names || 'aucun'}\n`;
+        const d2 = team2Schedule.daysData[d];
+        const team1IsMorning = team1Schedule.shifts.team1.shift === 'matin';
+        const morningDay = team1IsMorning ? { name: 'Éq.1 (☀️ Matin)', day: d1 } : { name: 'Éq.2 (☀️ Matin)', day: d2 };
+        const afternoonDay = team1IsMorning ? { name: 'Éq.2 (🌙 Soir)', day: d2 } : { name: 'Éq.1 (🌙 Soir)', day: d1 };
+
+        text += `  *${morningDay.name} :*\n`;
+        morningDay.day.roomAssignments.forEach((ra) => {
+          const names = ra.students.map((st) => st.nom).join(' & ');
+          if (names) text += `    ${ra.emoji} ${ra.name} : ${names}\n`;
+        });
+
+        text += `  *${afternoonDay.name} :*\n`;
+        afternoonDay.day.roomAssignments.forEach((ra) => {
+          const names = ra.students.map((st) => st.nom).join(' & ');
+          if (names) text += `    ${ra.emoji} ${ra.name} : ${names}\n`;
         });
         text += `\n`;
       }
-    });
+    }
 
-    text += `🔄 _Rotation quotidienne UrgencesRotation_`;
+    text += `🌐 *Consulter en ligne :*\nhttps://stg-welle.github.io/rotation-urgences/`;
     copyTextToClipboard(text, 'Semaine complète copiée !');
     closeModal('whatsapp-modal');
   }
