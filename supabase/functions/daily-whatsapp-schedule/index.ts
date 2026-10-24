@@ -204,10 +204,10 @@ serve(async (req: Request) => {
       whatsappMessage = generateFallbackTemplate(scheduleContext);
     }
 
-    // Ajout systématique du lien vers le site pour consulter le planning de toute la semaine
+    // Ajout systématique du lien vers le site si manquant
     const SITE_URL = "https://stg-welle.github.io/rotation-urgences/";
     if (!whatsappMessage.includes("stg-welle.github.io/rotation-urgences")) {
-      whatsappMessage = whatsappMessage.trim() + `\n\n🌐 *Planning complet de la semaine :*\n${SITE_URL}\n\n🔄 _Diffusion automatique • UrgencesRotation CHUL_`;
+      whatsappMessage = whatsappMessage.trim() + `\n\n🌐 *Planning complet de la semaine :*\n${SITE_URL}`;
     }
 
     // 9. Envoi WhatsApp (si ce n'est pas une simple prévisualisation)
@@ -251,7 +251,7 @@ serve(async (req: Request) => {
 });
 
 // ==============================================================================
-// 1. APPEL À L'API GROQ (Formatage intelligent et chaleureux)
+// 1. APPEL À L'API GROQ (Formatage minimaliste et épuré)
 // ==============================================================================
 async function generateWithGroq(
   apiKey: string,
@@ -272,28 +272,60 @@ async function generateWithGroq(
     totalAbsents: number;
   }
 ): Promise<string> {
-  const prompt = `Tu es le superviseur pédagogique des urgences du ${ctx.hopital}.
-Rédige le message officiel WhatsApp du jour pour diffuser l'emploi du temps des étudiants stagiaires.
+  const prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
+Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format minimaliste, aéré et épuré.
 
 Données du jour :
 - Date : ${ctx.date}
-- Est-ce le week-end : ${ctx.isWeekend ? "OUI (Repos général R.A.S)" : "NON (Jour de stage)"}
-- Répartition des salles :
+- Est-ce le week-end : ${ctx.isWeekend ? "OUI" : "NON"}
+- Répartition :
 ${JSON.stringify(ctx.roomAssignments, null, 2)}
-- Nombre de stagiaires actifs : ${ctx.totalActifs}
 
-Consignes strictes de mise en page WhatsApp :
-1. Utilise la syntaxe WhatsApp : *gras* pour les titres et noms de salles, _italique_ pour les descriptions courtes.
-2. Inclus les emojis médicaux adéquats (🏥, 🔵, 🟢, 🔴, 🟣, 🩺, 💉, ✨, ⚪).
-3. Mentionne clairement en tête : "${ctx.hopital} • ${ctx.service}".
-4. Pour chaque salle : affiche l'emoji, le nom de la salle en gras, les stagiaires en poste sous forme de tirets (• Nom), et une brève ligne de rôle.
-5. Si un stagiaire est absent dans une salle, mentionne-le avec discrétion et bienveillance (ex: _(Absent(e) : Nom)_).
-6. Si c'est le week-end, annonce chaleureusement le repos de service (⚪ R.A.S - Repos de garde) et la reprise le Lundi matin.
-7. Termine obligatoirement en invitant à consulter le planning complet de la semaine avec ce lien exact :
+FORMAT EXACT REQUIS :
+${ctx.isWeekend ? `
+🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences*
+*Date : ${ctx.date}*
+
+⚪ *R.A.S - Repos de garde*
+_Reprise du service lundi matin._
+
 🌐 *Planning complet de la semaine :*
 https://stg-welle.github.io/rotation-urgences/
-8. Ne rajoute AUCUNE phrase avant ou après le message WhatsApp (pas de "Voici le message", pas de guillemets).
-9. RÈGLE STRICTE : N'utilise JAMAIS de tableaux Markdown avec des barres verticales | (très mal affichés sur WhatsApp mobile). Utilise UNIQUEMENT des listes à puces avec des tirets (• Nom).`;
+` : `
+🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences*
+*Date : ${ctx.date}*
+
+🔵 *Triage*
+
+• Nom1
+• Nom2
+
+🟢 *Piquage*
+
+• Nom1
+• Nom2
+
+🔴 *Déchocage*
+
+• Nom1
+• Nom2
+
+🟣 *Observation*
+
+• Nom1
+• Nom2
+
+🌐 *Planning complet de la semaine :*
+https://stg-welle.github.io/rotation-urgences/
+`}
+
+Consignes strictes :
+1. N'ajoute AUCUNE description de rôle sous les salles.
+2. Ne mets PAS les lettres de groupe comme "(Groupe A)". Affiche seulement "🔵 *Triage*", "🟢 *Piquage*", "🔴 *Déchocage*", "🟣 *Observation*".
+3. Laisse une ligne vide entre le titre de la salle et la liste des noms.
+4. Laisse une ligne vide entre chaque bloc de salle.
+5. Si un stagiaire est absent, écris simplement "• Nom (Absent)".
+6. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.`;
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
     method: "POST",
@@ -306,15 +338,15 @@ https://stg-welle.github.io/rotation-urgences/
       messages: [
         {
           role: "system",
-          content: "Tu es un assistant hospitalier d'élite expert en communication soignante et médicale pour le CHUL. Tu rédiges des messages WhatsApp parfaitement lisibles sur smartphone sans tableaux pipes."
+          content: "Tu es un assistant hospitalier expert pour le CHUL. Tu formates les plannings WhatsApp de façon minimaliste, aérée et ultra-lisible, sans explications superflues."
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      temperature: 0.3,
-      max_tokens: 900
+      temperature: 0.1,
+      max_tokens: 600
     })
   });
 
@@ -346,34 +378,30 @@ function generateFallbackTemplate(ctx: {
     absentStudents: string[];
   }>;
 }): string {
-  let msg = `🏥 *${ctx.hopital.toUpperCase()}*\n`;
-  msg += `📋 *${ctx.service.toUpperCase()} - PLANNING DU JOUR*\n`;
-  msg += `📅 _${ctx.date}_\n\n`;
+  let msg = `🏥 *${ctx.hopital} • ${ctx.service}*\n`;
+  msg += `*Date : ${ctx.date}*\n\n`;
 
   if (ctx.isWeekend) {
-    msg += `⚪ *WEEK-END • REPOS DE SERVICE (R.A.S)*\n\n`;
-    msg += `Aucun étudiant stagiaire n'est de garde le samedi et le dimanche.\n`;
-    msg += `💤 Repos bien mérité à tous ! Reprise de la rotation *Lundi matin*.\n\n`;
+    msg += `⚪ *R.A.S - Repos de garde*\n`;
+    msg += `_Reprise du service lundi matin._\n\n`;
   } else {
     ctx.roomAssignments.forEach((ra) => {
-      msg += `${ra.emoji} *${ra.room.toUpperCase()}* _(${ra.groupName})_ :\n`;
-      if (ra.activeStudents.length === 0) {
-        msg += `  _(aucun stagiaire actif)_\n`;
+      msg += `${ra.emoji} *${ra.room}*\n\n`;
+      if (ra.activeStudents.length === 0 && ra.absentStudents.length === 0) {
+        msg += `• _(aucun stagiaire)_\n\n`;
       } else {
         ra.activeStudents.forEach((st) => {
-          msg += `  • ${st}\n`;
+          msg += `• ${st}\n`;
         });
+        ra.absentStudents.forEach((st) => {
+          msg += `• ${st} _(Absent)_\n`;
+        });
+        msg += `\n`;
       }
-      if (ra.absentStudents.length > 0) {
-        msg += `  _Absent(e) : ${ra.absentStudents.join(", ")}_\n`;
-      }
-      msg += `  ℹ️ _${ra.role}_\n\n`;
     });
-    msg += `🩺 *Bonne garde et bon courage à toute l'équipe soignante !*\n\n`;
   }
 
-  msg += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/\n\n`;
-  msg += `🔄 _Diffusion automatique • UrgencesRotation CHUL_`;
+  msg += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/`;
   return msg;
 }
 
