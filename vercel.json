@@ -1,0 +1,187 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "redirects": [
+    { "source": "/patient", "destination": "/", "permanent": true },
+    { "source": "/patient.html", "destination": "/", "permanent": true },
+    { "source": "/caregiver", "destination": "/", "permanent": true },
+    { "source": "/caregiver.html", "destination": "/", "permanent": true },
+    { "source": "/portal", "destination": "/", "permanent": true },
+    { "source": "/portal.html", "destination": "/", "permanent": true },
+    { "source": "/app", "destination": "/", "permanent": true },
+    { "source": "/app/(.*)", "destination": "/", "permanent": true },
+    { "source": "/download", "destination": "/#download", "permanent": false },
+    { "source": "/download/", "destination": "/#download", "permanent": false },
+    { "source": "/download/soignant", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/download/caregiver", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/download/patient", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Patient.apk", "permanent": false },
+    { "source": "/download/admin", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Admin.apk", "permanent": false },
+    { "source": "/download/admin-exe", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/MediR+-Admin.exe", "permanent": false },
+    { "source": "/download/exe", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/MediR+-Admin.exe", "permanent": false },
+    { "source": "/api/download/soignant", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/api/download/caregiver", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/api/download/patient", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Patient.apk", "permanent": false },
+    { "source": "/api/download/admin", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Admin.apk", "permanent": false },
+    { "source": "/api/download/admin-exe", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/MediR+-Admin.exe", "permanent": false },
+    { "source": "/apk/:path*", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/:path*", "permanent": false },
+    { "source": "/desktop/:path*", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/:path*", "permanent": false },
+    { "source": "/soignant.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/patient.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Patient.apk", "permanent": false },
+    { "source": "/admin.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Admin.apk", "permanent": false },
+    { "source": "/admin.exe", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/MediR+-Admin.exe", "permanent": false },
+    { "source": "/MediRappel.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/MediRappel-Soignant.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/MediRappel-Patient.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Patient.apk", "permanent": false },
+    { "source": "/MediRappel-Admin.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Admin.apk", "permanent": false },
+    { "source": "/MediRappel-Admin.exe", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/MediR+-Admin.exe", "permanent": false },
+    { "source": "/MediR-Soignant.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/MediR-Patient.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Patient.apk", "permanent": false },
+    { "source": "/MediR-Admin.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Admin.apk", "permanent": false },
+    { "source": "/MediR-Admin.exe", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/MediR+-Admin.exe", "permanent": false },
+    { "source": "/MediR\\+-Soignant.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Soignant.apk", "permanent": false },
+    { "source": "/MediR\\+-Patient.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Patient.apk", "permanent": false },
+    { "source": "/MediR\\+-Admin.apk", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/apk/MediR+-Admin.apk", "permanent": false },
+    { "source": "/MediR\\+-Admin.exe", "destination": "https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev/desktop/MediR+-Admin.exe", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/wp-login.php", "destination": "/api/trap" },
+    { "source": "/wp-admin(.*)", "destination": "/api/trap" },
+    { "source": "/xmlrpc.php", "destination": "/api/trap" },
+    { "source": "/phpmyadmin(.*)", "destination": "/api/trap" },
+    { "source": "/pma(.*)", "destination": "/api/trap" },
+    { "source": "/mysql(.*)", "destination": "/api/trap" },
+    { "source": "/admin.php", "destination": "/api/trap" },
+    { "source": "/setup.php", "destination": "/api/trap" },
+    { "source": "/config.json", "destination": "/api/trap" },
+    { "source": "/.env(.*)", "destination": "/api/trap" },
+    { "source": "/.git(.*)", "destination": "/api/trap" },
+    { "source": "/.aws(.*)", "destination": "/api/trap" },
+    { "source": "/actuator(.*)", "destination": "/api/trap" },
+    { "source": "/api/v1/debug(.*)", "destination": "/api/trap" },
+    { "source": "/console(.*)", "destination": "/api/trap" },
+    { "source": "/solr(.*)", "destination": "/api/trap" },
+    { "source": "/shell(.*)", "destination": "/api/trap" },
+    { "source": "/backup(.*).sql", "destination": "/api/trap" },
+    { "source": "/database.sql", "destination": "/api/trap" },
+    { "source": "/dump(.*).sql", "destination": "/api/trap" },
+    { "source": "/vendor/phpunit(.*)", "destination": "/api/trap" },
+    { "source": "/cgi-bin(.*)", "destination": "/api/trap" },
+    { "source": "/telescope(.*)", "destination": "/api/trap" },
+    { "source": "/boaform(.*)", "destination": "/api/trap" },
+    { "source": "/HNAP1(.*)", "destination": "/api/trap" },
+    { "source": "/.DS_Store", "destination": "/api/trap" },
+    { "source": "/eval-stdin(.*)", "destination": "/api/trap" },
+    { "source": "/invoker(.*)", "destination": "/api/trap" },
+    { "source": "/admin.js", "destination": "/api/trap" },
+    { "source": "/admin.css", "destination": "/api/trap" },
+    { "source": "/supabase.js", "destination": "/api/trap" },
+    { "source": "/realtime-client.js", "destination": "/api/trap" },
+    { "source": "/caregiver.js", "destination": "/api/trap" },
+    { "source": "/portal.js", "destination": "/api/trap" },
+    { "source": "/admin", "destination": "/404.html" },
+    { "source": "/admin/", "destination": "/404.html" },
+    { "source": "/admin.html", "destination": "/404.html" },
+    { "source": "/direction-console-privee", "destination": "/direction-console-privee.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev https://*.supabase.co https://images.unsplash.com; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://medirappel.vercel.app https://*.vercel.app https://*.supabase.co https://api.github.com https://pub-c3599a7b3fa74b2fa87e4638587a53e4.r2.dev; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(self), microphone=(), geolocation=(), payment=(), usb=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-site"
+        },
+        {
+          "key": "X-Permitted-Cross-Domain-Policies",
+          "value": "none"
+        }
+      ]
+    },
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" },
+        { "key": "Pragma", "value": "no-cache" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" }
+      ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate, max-age=0" },
+        { "key": "Pragma", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate, max-age=0" },
+        { "key": "Pragma", "value": "no-cache" }
+      ]
+    },
+    {
+      "source": "/(admin|portal|caregiver|direction-console-privee)(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0" },
+        { "key": "Pragma", "value": "no-cache" },
+        { "key": "X-Robots-Tag", "value": "noindex, nofollow, noarchive" }
+      ]
+    },
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/app/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/app/canvaskit/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}
