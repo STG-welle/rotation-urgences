@@ -125,11 +125,45 @@ serve(async (req: Request) => {
       });
     }
 
-    // B. Endpoint GET statut JSON
+    // B. Endpoint GET pour vérifier les réglages enregistrés sur Green API
+    if (action === "settings") {
+      try {
+        const settingsResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/getSettings/${greenApiToken}`);
+        const settingsData = await settingsResp.json();
+        return new Response(JSON.stringify(settingsData, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // C. Endpoint GET statut JSON et synchronisation DB
     try {
       const stateResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/getStateInstance/${greenApiToken}`);
       const stateData = await stateResp.json();
-      return new Response(JSON.stringify(stateData, null, 2), {
+      const stateInstance = stateData.stateInstance || "unknown";
+      const isAuthorized = stateInstance === "authorized";
+      const isCritical = ["notAuthorized", "blocked", "sleepMode"].includes(stateInstance);
+      const nowIso = new Date().toISOString();
+
+      // Synchronisation en base de données Supabase
+      await supabase
+        .from("whatsapp_instance_status")
+        .upsert({
+          id: 1,
+          instance_id: String(greenInstanceId),
+          state_instance: stateInstance,
+          is_connected: isAuthorized,
+          last_connected_at: isAuthorized ? nowIso : undefined,
+          alert_active: isCritical,
+          updated_at: nowIso
+        });
+
+      return new Response(JSON.stringify({ ...stateData, database_synced: true }, null, 2), {
         headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
       });
     } catch (e) {
@@ -322,18 +356,34 @@ async function triggerAdminAlert(opts: {
   // Option 2 : Alerte Webhook externe (Slack, Discord, Telegram, Backend MediRappel)
   if (opts.alertWebhookUrl) {
     try {
-      await fetch(opts.alertWebhookUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      const isDiscord = opts.alertWebhookUrl.includes("discord.com");
+      const isSlack = opts.alertWebhookUrl.includes("slack.com");
+      let bodyPayload: string;
+
+      if (isDiscord) {
+        bodyPayload = JSON.stringify({
+          content: `🚨 **ALERTE DÉCONNEXION WHATSAPP (Green API)**\n- **Statut** : \`${opts.stateInstance}\`\n- **Instance** : \`${opts.instanceId}\`\n- **Heure** : ${dateFormatted}\n\n📲 **Scanner le QR Code pour reconnecter :**\n${qrViewUrl}`
+        });
+      } else if (isSlack) {
+        bodyPayload = JSON.stringify({
+          text: `🚨 *ALERTE DÉCONNEXION WHATSAPP (Green API)*\n• Statut : \`${opts.stateInstance}\`\n• Instance : ${opts.instanceId}\n• Heure : ${dateFormatted}\n• Scanner le QR Code : <${qrViewUrl}|Ouvrir le QR Code>`
+        });
+      } else {
+        bodyPayload = JSON.stringify({
           event: "whatsapp_disconnected",
           stateInstance: opts.stateInstance,
           instanceId: opts.instanceId,
           timestamp: opts.timeIso,
           qrViewUrl
-        })
+        });
+      }
+
+      await fetch(opts.alertWebhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: bodyPayload
       });
-      console.log("Alerte webhook externe transmise.");
+      console.log("Alerte webhook externe transmise avec succès.");
     } catch (e) {
       console.error("Échec alerte webhook externe :", e);
     }
