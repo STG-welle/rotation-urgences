@@ -336,6 +336,24 @@
   }
 
   // ============================================================================
+  // BASCULEMENT 100% AUTOMATIQUE SELON LES DISPONIBILITÉS HORAIRES
+  // - 'matin' : Rattaché automatiquement à l'équipe en Matinée cette semaine-là
+  // - 'apres_midi' : Rattaché automatiquement à l'équipe en Après-midi cette semaine-là
+  // - 'tous' : Reste dans son équipe de référence (s.equipe || '1')
+  // ============================================================================
+  function getEffectiveStudentTeam(student, isEvenWeek) {
+    if (!student) return '1';
+    const dispo = student.disponibilite;
+    if (dispo === 'matin') {
+      return isEvenWeek ? '1' : '2';
+    }
+    if (dispo === 'apres_midi') {
+      return isEvenWeek ? '2' : '1';
+    }
+    return (student.equipe === '2' || student.equipe === 2) ? '2' : '1';
+  }
+
+  // ============================================================================
   // BRASSAGE DYNAMIQUE QUOTIDIEN DES BINÔMES (Social Golfer / Tournoi Harmonique)
   // Permet à tous les stagiaires de changer de binôme et de salle chaque jour,
   // et de travailler avec TOUS les membres de l'équipe au cours du mois.
@@ -422,11 +440,17 @@
     const msInADay = 24 * 60 * 60 * 1000;
     const weekNumber = Math.floor((targetMonday.getTime() - startMonday.getTime()) / (7 * msInADay));
 
+    // Calcul des créneaux de la semaine (Matinée vs Après-midi)
+    const weekShifts = getWeekShifts(targetMonday);
+    const isEvenWeek = weekShifts.isEvenWeek;
+
     // Stagiaires de l'équipe ciblée ('1' ou '2')
-    // La répartition des groupes et de la rotation est calculée de façon autonome
-    // pour chaque équipe, assurant que l'Équipe 1 reste 100% stable et inchangée.
+    // Basculement 100% automatique selon les disponibilités :
+    // - Les stagiaires avec 'matin' rejoignent automatiquement l'équipe en Matinée cette semaine
+    // - Les stagiaires avec 'apres_midi' rejoignent automatiquement l'équipe en Après-midi cette semaine
+    // - Les stagiaires avec 'tous' suivent leur équipe de référence (s.equipe || '1')
     const teamKey = (targetEquipe === '2' || targetEquipe === 2) ? '2' : '1';
-    const teamStagiaires = state.stagiaires.filter((s) => (s.equipe || '1') === teamKey);
+    const teamStagiaires = state.stagiaires.filter((s) => getEffectiveStudentTeam(s, isEvenWeek) === teamKey);
     const allStagiaires = [...teamStagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
     const activeStagiaires = allStagiaires.filter((s) => s.actif === true);
 
@@ -546,7 +570,6 @@
       return [];
     }
 
-    const weekShifts = getWeekShifts(targetMonday);
     const currentTeamShift = (teamKey === '2') ? weekShifts.team2 : weekShifts.team1;
 
     return {
@@ -633,8 +656,9 @@
     const shiftSummaryBadge = document.getElementById('shift-summary-badge');
     const teamLabel = document.getElementById('team-student-label');
 
-    const count1 = state.stagiaires.filter((s) => (s.equipe || '1') === '1' && s.actif).length;
-    const count2 = state.stagiaires.filter((s) => (s.equipe || '1') === '2' && s.actif).length;
+    const isEven = schedule?.shifts?.isEvenWeek ?? true;
+    const count1 = state.stagiaires.filter((s) => getEffectiveStudentTeam(s, isEven) === '1' && s.actif).length;
+    const count2 = state.stagiaires.filter((s) => getEffectiveStudentTeam(s, isEven) === '2' && s.actif).length;
 
     if (badge1) badge1.textContent = count1;
     if (badge2) badge2.textContent = count2;
@@ -772,7 +796,8 @@
         return;
       }
 
-      const studentEquipe = found.equipe || '1';
+      const isEven = schedule?.shifts?.isEvenWeek ?? true;
+      const studentEquipe = getEffectiveStudentTeam(found, isEven);
       const studentSchedule = studentEquipe === schedule.equipe ? schedule : calculateDailySchedule(state.weekOffset, studentEquipe);
 
       const todayIndex = studentSchedule.daysData.findIndex((d) => d.isToday);
@@ -818,7 +843,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
             </svg>
           </div>
-            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)} <span class="text-[10px] text-blue-700 font-extrabold bg-blue-100 px-1.5 py-0.2 rounded-md">Équipe ${studentEquipe} • ${studentSchedule.currentTeamShift?.badgeLabel || ''}</span></span> :
+            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)} <span class="text-[10px] text-blue-700 font-extrabold bg-blue-100 px-1.5 py-0.2 rounded-md">Équipe ${studentEquipe} • ${studentSchedule.currentTeamShift?.badgeLabel || ''}${found.disponibilite && found.disponibilite !== 'tous' ? ' (Auto)' : ''}</span></span> :
             ${studentSchedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
             ${todayText}.
           </div>
@@ -1249,8 +1274,12 @@
       dateInput.value = state.config.date_debut_stage.substring(0, 10);
     }
 
-    const countTeam1 = state.stagiaires.filter((s) => (s.equipe || '1') === '1').length;
-    const countTeam2 = state.stagiaires.filter((s) => (s.equipe || '1') === '2').length;
+    const focusedTeam = state.adminFilterEquipe === '2' ? '2' : '1';
+    const schedule = calculateDailySchedule(state.weekOffset, focusedTeam);
+    const isEven = schedule.shifts.isEvenWeek;
+
+    const countTeam1 = state.stagiaires.filter((s) => getEffectiveStudentTeam(s, isEven) === '1').length;
+    const countTeam2 = state.stagiaires.filter((s) => getEffectiveStudentTeam(s, isEven) === '2').length;
     const countAll = state.stagiaires.length;
 
     if (tabTeam1Count) tabTeam1Count.textContent = countTeam1;
@@ -1263,9 +1292,6 @@
     if (tabTeam1) tabTeam1.className = state.adminFilterEquipe === '1' ? activeTabClass : inactiveTabClass;
     if (tabTeam2) tabTeam2.className = state.adminFilterEquipe === '2' ? activeTabClass : inactiveTabClass;
     if (tabAll) tabAll.className = state.adminFilterEquipe === 'all' ? activeTabClass : inactiveTabClass;
-
-    const focusedTeam = state.adminFilterEquipe === '2' ? '2' : '1';
-    const schedule = calculateDailySchedule(state.weekOffset, focusedTeam);
 
     // Résumé de la répartition des 4 groupes pour l'équipe en cours
     if (summaryEl) {
@@ -1294,9 +1320,9 @@
 
     let displayStudents = state.stagiaires;
     if (state.adminFilterEquipe === '1') {
-      displayStudents = state.stagiaires.filter((s) => (s.equipe || '1') === '1');
+      displayStudents = state.stagiaires.filter((s) => getEffectiveStudentTeam(s, isEven) === '1');
     } else if (state.adminFilterEquipe === '2') {
-      displayStudents = state.stagiaires.filter((s) => (s.equipe || '1') === '2');
+      displayStudents = state.stagiaires.filter((s) => getEffectiveStudentTeam(s, isEven) === '2');
     }
 
     const total = displayStudents.length;
@@ -1320,21 +1346,18 @@
 
     list.innerHTML = sorted
       .map((s) => {
-        const studentTeam = s.equipe || '1';
-        const teamSchedule = calculateDailySchedule(state.weekOffset, studentTeam);
+        const baseTeam = (s.equipe === '2' || s.equipe === 2) ? '2' : '1';
+        const effectiveTeam = getEffectiveStudentTeam(s, isEven);
+        const isFixedSlot = (s.disponibilite === 'matin' || s.disponibilite === 'apres_midi');
+        const teamSchedule = calculateDailySchedule(state.weekOffset, effectiveTeam);
         const gIdx = teamSchedule.studentGroupMap.get(s.id);
         const currentGroupLetter = gIdx !== undefined ? ['A', 'B', 'C', 'D'][gIdx] : '?';
-        const teamShiftInfo = (studentTeam === '2' ? teamSchedule.shifts.team2 : teamSchedule.shifts.team1);
+        const teamShiftInfo = (effectiveTeam === '2' ? teamSchedule.shifts.team2 : teamSchedule.shifts.team1);
         const dispo = s.disponibilite || 'tous';
-        const hasConflict = (dispo === 'matin' && teamShiftInfo.shift === 'apres_midi') ||
-                            (dispo === 'apres_midi' && teamShiftInfo.shift === 'matin');
-        const otherTeam = studentTeam === '1' ? '2' : '1';
 
         return `
       <div class="flex flex-col gap-2 p-2.5 rounded-xl border ${
-        hasConflict
-          ? 'bg-amber-50/70 border-amber-300'
-          : s.actif ? 'bg-white border-slate-200' : 'bg-slate-100 border-dashed border-slate-300 opacity-60'
+        s.actif ? 'bg-white border-slate-200' : 'bg-slate-100 border-dashed border-slate-300 opacity-60'
       }">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div class="flex items-center gap-2.5 min-w-0">
@@ -1344,12 +1367,17 @@
             <div class="min-w-0">
               <div class="flex items-center gap-1.5 flex-wrap">
                 <span class="text-xs sm:text-sm font-bold text-slate-900 truncate block">${escapeHtml(s.nom)}</span>
-                <span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${studentTeam === '2' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}">
-                  Équipe ${studentTeam} (${teamShiftInfo.badgeLabel})
+                <span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${effectiveTeam === '2' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}">
+                  Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})${isFixedSlot ? ' • Auto' : ''}
                 </span>
                 ${
+                  isFixedSlot
+                    ? `<span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200" title="Équipe de référence par défaut">Base: Éq. ${baseTeam}</span>`
+                    : ''
+                }
+                ${
                   dispo !== 'tous'
-                    ? `<span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${dispo === 'matin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-purple-100 text-purple-900 border border-purple-300'}">Dispo : ${dispo === 'matin' ? '☀️ Matin' : '🌙 Après-midi'}</span>`
+                    ? `<span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${dispo === 'matin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-purple-100 text-purple-900 border border-purple-300'}">Fixe : ${dispo === 'matin' ? '☀️ Matin' : '🌙 Après-midi'}</span>`
                     : ''
                 }
               </div>
@@ -1360,17 +1388,17 @@
           </div>
 
           <div class="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-wrap">
-            <!-- Sélecteur d'équipe -->
-            <select data-admin-equipe="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Changer d'équipe">
-              <option value="1" ${studentTeam === '1' ? 'selected' : ''}>Équipe 1</option>
-              <option value="2" ${studentTeam === '2' ? 'selected' : ''}>Équipe 2</option>
+            <!-- Sélecteur d'équipe de référence -->
+            <select data-admin-equipe="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Équipe de référence">
+              <option value="1" ${baseTeam === '1' ? 'selected' : ''}>Équipe 1</option>
+              <option value="2" ${baseTeam === '2' ? 'selected' : ''}>Équipe 2</option>
             </select>
 
             <!-- Sélecteur de disponibilité horaire -->
-            <select data-admin-dispo="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Contrainte horaire">
+            <select data-admin-dispo="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Contrainte horaire (basculement 100% automatique)">
               <option value="tous" ${dispo === 'tous' ? 'selected' : ''}>☀️/🌙 Tous</option>
-              <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>☀️ Matin</option>
-              <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>🌙 Après-midi</option>
+              <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>☀️ Matin (Auto)</option>
+              <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>🌙 Après-midi (Auto)</option>
             </select>
 
             <!-- Sélecteur de groupe explicite avec salle de départ le Lundi -->
@@ -1398,16 +1426,15 @@
         </div>
 
         ${
-          hasConflict
+          isFixedSlot
             ? `
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-amber-100/80 border border-amber-300 text-amber-900 text-[11px] font-bold">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 text-[11px] font-bold">
             <div class="flex items-center gap-1.5 min-w-0">
-              <span class="text-sm shrink-0">⚠️</span>
-              <span class="truncate sm:whitespace-normal"><strong>Conflit de créneau :</strong> Dispo <strong>${dispo === 'matin' ? '☀️ Matin' : '🌙 Après-midi'}</strong> uniquement alors que l'Équipe ${studentTeam} est en <strong>${teamShiftInfo.label}</strong> cette semaine.</span>
+              <span class="text-sm shrink-0">🔄</span>
+              <span class="truncate sm:whitespace-normal">
+                <strong>Basculement 100% Automatique :</strong> Contrainte <strong>${dispo === 'matin' ? '☀️ Matin uniquement' : '🌙 Après-midi uniquement'}</strong>. Rattaché(e) automatiquement à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.
+              </span>
             </div>
-            <button type="button" data-admin-quick-swap="${s.id}" data-target-team="${otherTeam}" class="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white rounded-lg text-xs font-black shrink-0 transition shadow-2xs self-end sm:self-auto">
-              Transférer en Équipe ${otherTeam}
-            </button>
           </div>
           `
             : ''
@@ -1908,8 +1935,13 @@
       if (q.trim()) {
         localStorage.setItem('urgences_my_student_name', q.trim());
         const match = state.stagiaires.find((s) => s.nom.toLowerCase().includes(q.trim().toLowerCase()));
-        if (match && (match.equipe || '1') !== state.selectedEquipe) {
-          state.selectedEquipe = match.equipe || '1';
+        if (match) {
+          const currentSched = calculateDailySchedule(state.weekOffset, state.selectedEquipe);
+          const isEven = currentSched.shifts?.isEvenWeek ?? true;
+          const effTeam = getEffectiveStudentTeam(match, isEven);
+          if (effTeam !== state.selectedEquipe) {
+            state.selectedEquipe = effTeam;
+          }
         }
       } else {
         localStorage.removeItem('urgences_my_student_name');

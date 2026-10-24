@@ -143,13 +143,6 @@ serve(async (req: Request) => {
       return groups;
     }
 
-    const team1Members = stagiaires.filter((s) => s.equipe === "1");
-    const team2Members = stagiaires.filter((s) => s.equipe === "2");
-    const hasTeam2 = team2Members.length > 0;
-
-    const groupsTeam1 = buildCohortGroups(team1Members);
-    const groupsTeam2 = hasTeam2 ? buildCohortGroups(team2Members) : [[], [], [], []];
-
     // 6. Calcul de la date du jour (Fuseau horaire de Libreville, Gabon : UTC+1)
     let targetDate = new Date();
     if (bodyParams.date) {
@@ -194,6 +187,23 @@ serve(async (req: Request) => {
     const isEvenWeek = ((weekIndex % 2) + 2) % 2 === 0;
 
     const team1IsMorning = isEvenWeek;
+
+    // Basculement 100% automatique selon les disponibilités horaires :
+    // - 'matin' : Rattaché automatiquement à l'équipe en Matinée cette semaine
+    // - 'apres_midi' : Rattaché automatiquement à l'équipe en Après-midi cette semaine
+    // - 'tous' : Reste dans son équipe de référence (s.equipe === '2' ? '2' : '1')
+    function getEffectiveStudentTeam(s: typeof stagiaires[0], isEven: boolean): string {
+      if (s.disponibilite === "matin") return isEven ? "1" : "2";
+      if (s.disponibilite === "apres_midi") return isEven ? "2" : "1";
+      return s.equipe === "2" ? "2" : "1";
+    }
+
+    const team1Members = stagiaires.filter((s) => getEffectiveStudentTeam(s, isEvenWeek) === "1");
+    const team2Members = stagiaires.filter((s) => getEffectiveStudentTeam(s, isEvenWeek) === "2");
+    const hasTeam2 = team2Members.length > 0;
+
+    const groupsTeam1 = buildCohortGroups(team1Members);
+    const groupsTeam2 = hasTeam2 ? buildCohortGroups(team2Members) : [[], [], [], []];
 
     // 8. Calcul de la rotation avec BRASSAGE DYNAMIQUE QUOTIDIEN DES BINÔMES
     // social golfer / tournoi harmonique 7 jours garantissant 0 répétitions consécutives de salle ou de binôme
