@@ -182,7 +182,7 @@ serve(async (req: Request) => {
     const scheduleContext = {
       date: formattedDateFr,
       hopital: "Centre Hospitalier Universitaire de Libreville (CHUL)",
-      service: "Service des Urgences",
+      service: "Service des Urgences Pédiatriques",
       isWeekend,
       roomAssignments,
       totalActifs: stagiaires.filter((s) => s.actif).length,
@@ -283,7 +283,7 @@ ${JSON.stringify(ctx.roomAssignments, null, 2)}
 
 FORMAT EXACT REQUIS :
 ${ctx.isWeekend ? `
-🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences*
+🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
 *Date : ${ctx.date}*
 
 ⚪ *R.A.S - Repos de garde*
@@ -292,7 +292,7 @@ _Reprise du service lundi matin._
 🌐 *Planning complet de la semaine :*
 https://stg-welle.github.io/rotation-urgences/
 ` : `
-🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences*
+🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
 *Date : ${ctx.date}*
 
 🔵 *Triage*

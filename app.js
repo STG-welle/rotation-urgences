@@ -1314,25 +1314,25 @@
     const todayIndex = schedule.daysData.findIndex((d) => d.isToday);
     const day = schedule.daysData[todayIndex !== -1 ? todayIndex : 0];
 
-    let text = `🏥 *PLANNING URGENCES DU ${day.dayInfo.label.toUpperCase()} ${day.dateFormatted.toUpperCase()}*\n\n`;
+    let text = `🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*\n*Date : ${day.dayInfo.label} ${day.dateFormatted}*\n\n`;
 
     if (day.isWeekend) {
-      text += `⚪ *R.A.S (Week-end / Repos)*\nAucun stagiaire en service le week-end.\n\n`;
+      text += `⚪ *R.A.S - Repos de garde*\n_Reprise du service lundi matin._\n\n`;
     } else {
       day.roomAssignments.forEach((ra) => {
-        text += `${ra.emoji} *${ra.name.toUpperCase()} :*\n`;
+        text += `${ra.emoji} *${ra.name}*\n\n`;
         if (ra.students.length === 0) {
-          text += `  _(aucun)_\n`;
+          text += `• _(aucun stagiaire)_\n\n`;
         } else {
           ra.students.forEach((st) => {
-            text += `  • ${st.nom}\n`;
+            text += `• ${st.nom}\n`;
           });
+          text += `\n`;
         }
-        text += `\n`;
       });
     }
 
-    text += `🔄 _Rotation quotidienne UrgencesRotation_`;
+    text += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/`;
     copyTextToClipboard(text, 'Planning du jour copié !');
     closeModal('whatsapp-modal');
   }
