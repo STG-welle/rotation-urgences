@@ -8,8 +8,8 @@
 
 window.APP_CONFIG = {
   // Vos identifiants Supabase (Project Settings > API dans le dashboard Supabase)
-  SUPABASE_URL: '', // ex: 'https://votre-projet.supabase.co'
-  SUPABASE_ANON_KEY: '', // ex: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  SUPABASE_URL: 'https://ezpbmutbkuoudmyyozlr.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_U7-ao4uwjTorXXLeCyClBA_ZkytQqmE',
 
   // Code PIN par défaut pour accéder au panel Administrateur
   DEFAULT_PIN: '1234',
