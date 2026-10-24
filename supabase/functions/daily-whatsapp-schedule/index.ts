@@ -324,7 +324,7 @@ Consignes strictes :
 2. Ne mets PAS les lettres de groupe comme "(Groupe A)". Affiche seulement "🔵 *Triage*", "🟢 *Piquage*", "🔴 *Déchocage*", "🟣 *Observation*".
 3. Laisse une ligne vide entre le titre de la salle et la liste des noms.
 4. Laisse une ligne vide entre chaque bloc de salle.
-5. Si un stagiaire est absent, écris simplement "• Nom (Absent)".
+5. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
 6. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.`;
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -387,14 +387,11 @@ function generateFallbackTemplate(ctx: {
   } else {
     ctx.roomAssignments.forEach((ra) => {
       msg += `${ra.emoji} *${ra.room}*\n\n`;
-      if (ra.activeStudents.length === 0 && ra.absentStudents.length === 0) {
-        msg += `• _(aucun stagiaire)_\n\n`;
+      if (ra.activeStudents.length === 0) {
+        msg += `• _(aucun stagiaire actif)_\n\n`;
       } else {
         ra.activeStudents.forEach((st) => {
           msg += `• ${st}\n`;
-        });
-        ra.absentStudents.forEach((st) => {
-          msg += `• ${st} _(Absent)_\n`;
         });
         msg += `\n`;
       }
