@@ -102,7 +102,7 @@ serve(async (req: Request) => {
         if (m && !groupe) groupe = m[1].toUpperCase();
         nom = nom.replace(/\s*\[(?:Groupe\s+)?([A-D])\]\s*$/i, "").trim();
       }
-      const equipe = (s.equipe === "2" || s.equipe === 2) ? "2" : "1";
+      const equipe = (s.equipe === "2" || s.equipe === 2) ? "2" : ((s.equipe === "1" || s.equipe === 1) ? "1" : "auto");
       const disponibilite = (s.disponibilite === "matin" || s.disponibilite === "apres_midi") ? s.disponibilite : "tous";
       return {
         id: s.id,
@@ -195,7 +195,9 @@ serve(async (req: Request) => {
     function getEffectiveStudentTeam(s: typeof stagiaires[0], isEven: boolean): string {
       if (s.disponibilite === "matin") return isEven ? "1" : "2";
       if (s.disponibilite === "apres_midi") return isEven ? "2" : "1";
-      return s.equipe === "2" ? "2" : "1";
+      if (s.equipe === "2") return "2";
+      if (s.equipe === "1") return "1";
+      return "1";
     }
 
     const team1Members = stagiaires.filter((s) => getEffectiveStudentTeam(s, isEvenWeek) === "1");

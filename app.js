@@ -127,7 +127,7 @@
             ...s,
             nom: parsed.nom,
             groupe: parsed.groupe,
-            equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1',
+            equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : ((s.equipe === '1' || s.equipe === 1) ? '1' : 'auto'),
             disponibilite: (s.disponibilite === 'matin' || s.disponibilite === 'apres_midi') ? s.disponibilite : 'tous'
           };
         });
@@ -210,18 +210,18 @@
       try {
         state.stagiaires = JSON.parse(localStagiaires).map((s) => {
           const parsed = parseStudentNom(s.nom, s.groupe);
-          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1', disponibilite: s.disponibilite || 'tous' };
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : ((s.equipe === '1' || s.equipe === 1) ? '1' : 'auto'), disponibilite: s.disponibilite || 'tous' };
         });
       } catch {
         state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
           const parsed = parseStudentNom(s.nom, s.groupe);
-          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1', disponibilite: s.disponibilite || 'tous' };
+          return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : ((s.equipe === '1' || s.equipe === 1) ? '1' : 'auto'), disponibilite: s.disponibilite || 'tous' };
         });
       }
     } else {
       state.stagiaires = window.APP_CONFIG.DEMO_STAGIAIRES.map((s) => {
         const parsed = parseStudentNom(s.nom, s.groupe);
-        return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : '1', disponibilite: s.disponibilite || 'tous' };
+        return { ...s, nom: parsed.nom, groupe: parsed.groupe, equipe: (s.equipe === '2' || s.equipe === 2) ? '2' : ((s.equipe === '1' || s.equipe === 1) ? '1' : 'auto'), disponibilite: s.disponibilite || 'tous' };
       });
       saveDemoStagiaires();
     }
@@ -263,7 +263,7 @@
       const parsed = parseStudentNom(newRec.nom, newRec.groupe);
       newRec.nom = parsed.nom;
       newRec.groupe = parsed.groupe;
-      newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : '1';
+      newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : ((newRec.equipe === '1' || newRec.equipe === 1) ? '1' : 'auto');
       newRec.disponibilite = (newRec.disponibilite === 'matin' || newRec.disponibilite === 'apres_midi') ? newRec.disponibilite : 'tous';
       if (!state.stagiaires.some((s) => s.id === newRec.id)) {
         state.stagiaires.push(newRec);
@@ -273,7 +273,7 @@
       const parsed = parseStudentNom(newRec.nom, newRec.groupe);
       newRec.nom = parsed.nom;
       newRec.groupe = parsed.groupe;
-      newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : '1';
+      newRec.equipe = (newRec.equipe === '2' || newRec.equipe === 2) ? '2' : ((newRec.equipe === '1' || newRec.equipe === 1) ? '1' : 'auto');
       newRec.disponibilite = (newRec.disponibilite === 'matin' || newRec.disponibilite === 'apres_midi') ? newRec.disponibilite : 'tous';
       const idx = state.stagiaires.findIndex((s) => s.id === newRec.id);
       if (idx !== -1) state.stagiaires[idx] = newRec;
@@ -344,13 +344,22 @@
   function getEffectiveStudentTeam(student, isEvenWeek) {
     if (!student) return '1';
     const dispo = student.disponibilite;
+    // Si contrainte horaire stricte, le créneau prime toujours
     if (dispo === 'matin') {
       return isEvenWeek ? '1' : '2';
     }
     if (dispo === 'apres_midi') {
       return isEvenWeek ? '2' : '1';
     }
-    return (student.equipe === '2' || student.equipe === 2) ? '2' : '1';
+    // Si l'équipe est explicitement '2'
+    if (student.equipe === '2' || student.equipe === 2) {
+      return '2';
+    }
+    if (student.equipe === '1' || student.equipe === 1) {
+      return '1';
+    }
+    // Si equipe === 'auto' et disponibilite === 'tous', affecter par défaut à l'Équipe 1
+    return '1';
   }
 
   // ============================================================================
@@ -1346,9 +1355,10 @@
 
     list.innerHTML = sorted
       .map((s) => {
-        const baseTeam = (s.equipe === '2' || s.equipe === 2) ? '2' : '1';
+        const baseTeam = (s.equipe === '2' || s.equipe === 2) ? '2' : (s.equipe === 'auto' ? 'auto' : '1');
         const effectiveTeam = getEffectiveStudentTeam(s, isEven);
         const isFixedSlot = (s.disponibilite === 'matin' || s.disponibilite === 'apres_midi');
+        const isAutoTeam = (baseTeam === 'auto');
         const teamSchedule = calculateDailySchedule(state.weekOffset, effectiveTeam);
         const gIdx = teamSchedule.studentGroupMap.get(s.id);
         const currentGroupLetter = gIdx !== undefined ? ['A', 'B', 'C', 'D'][gIdx] : '?';
@@ -1356,68 +1366,40 @@
         const dispo = s.disponibilite || 'tous';
 
         return `
-      <div class="flex flex-col gap-2 p-2.5 rounded-xl border ${
-        s.actif ? 'bg-white border-slate-200' : 'bg-slate-100 border-dashed border-slate-300 opacity-60'
+      <div class="flex flex-col gap-2.5 p-3.5 rounded-2xl border ${
+        s.actif ? 'bg-white border-slate-200 shadow-2xs' : 'bg-slate-50 border-dashed border-slate-300 opacity-60'
       }">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div class="flex items-center gap-2.5 min-w-0">
-            <span class="w-7 h-7 rounded-full ${s.actif ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'} font-bold flex items-center justify-center text-xs shrink-0">
+        <!-- Ligne 1 : Nom complet + Statut Présence + Actions rapides -->
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-3 min-w-0 flex-1">
+            <span class="w-8 h-8 rounded-full ${s.actif ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'} font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs">
               ${getInitials(s.nom)}
             </span>
-            <div class="min-w-0">
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-xs sm:text-sm font-bold text-slate-900 truncate block">${escapeHtml(s.nom)}</span>
-                <span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${effectiveTeam === '2' ? 'bg-indigo-100 text-indigo-800' : 'bg-blue-100 text-blue-800'}">
-                  Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})${isFixedSlot ? ' • Auto' : ''}
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-sm font-black text-slate-900 truncate">${escapeHtml(s.nom)}</span>
+                <span class="text-[10px] font-black px-2 py-0.5 rounded-md ${effectiveTeam === '2' ? 'bg-indigo-100 text-indigo-900' : 'bg-blue-100 text-blue-900'}">
+                  En poste : Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})
                 </span>
                 ${
-                  isFixedSlot
-                    ? `<span class="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-slate-100 text-slate-600 border border-slate-200" title="Équipe de référence par défaut">Base: Éq. ${baseTeam}</span>`
-                    : ''
-                }
-                ${
-                  dispo !== 'tous'
-                    ? `<span class="text-[9px] font-black px-1.5 py-0.2 rounded-full ${dispo === 'matin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-purple-100 text-purple-900 border border-purple-300'}">Fixe : ${dispo === 'matin' ? '☀️ Matin' : '🌙 Après-midi'}</span>`
+                  (isAutoTeam || isFixedSlot)
+                    ? `<span class="text-[10px] font-black px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-900 border border-cyan-200">🔄 Auto</span>`
                     : ''
                 }
               </div>
-              <div class="text-[10px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold">
-                ${s.actif ? 'Présent • En rotation active' : 'Absent • Exclu temporairement'}
+              <div class="text-[11px] ${s.actif ? 'text-emerald-700' : 'text-slate-500'} font-semibold mt-0.5">
+                ${s.actif ? '● Présent • En rotation active' : '○ Absent • Exclu temporairement'}
               </div>
             </div>
           </div>
 
-          <div class="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 pt-1.5 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-wrap">
-            <!-- Sélecteur d'équipe de référence -->
-            <select data-admin-equipe="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Équipe de référence">
-              <option value="1" ${baseTeam === '1' ? 'selected' : ''}>Équipe 1</option>
-              <option value="2" ${baseTeam === '2' ? 'selected' : ''}>Équipe 2</option>
-            </select>
-
-            <!-- Sélecteur de disponibilité horaire -->
-            <select data-admin-dispo="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Contrainte horaire (basculement 100% automatique)">
-              <option value="tous" ${dispo === 'tous' ? 'selected' : ''}>☀️/🌙 Tous</option>
-              <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>☀️ Matin (Auto)</option>
-              <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>🌙 Après-midi (Auto)</option>
-            </select>
-
-            <!-- Sélecteur de groupe explicite avec salle de départ le Lundi -->
-            <select data-admin-group="${s.id}" class="text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer" title="Affecter à un groupe spécifique">
-              <option value="" ${!s.groupe ? 'selected' : ''}>Auto (Équilibré)</option>
-              <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • 🔵 Triage</option>
-              <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • 🟢 Piquage</option>
-              <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • 🔴 Déchocage</option>
-              <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • 🟣 Observation</option>
-            </select>
-
-            <!-- Toggle Actif / Absent -->
+          <!-- Actions rapides : Toggle Présent & Supprimer -->
+          <div class="flex items-center gap-2 shrink-0">
             <label class="relative inline-flex items-center cursor-pointer" title="${s.actif ? 'Marquer absent' : 'Marquer présent'}">
               <input type="checkbox" data-admin-toggle="${s.id}" class="sr-only peer" ${s.actif ? 'checked' : ''}>
               <div class="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
             </label>
-
-            <!-- Supprimer -->
-            <button data-admin-delete="${s.id}" data-name="${escapeHtml(s.nom)}" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition" title="Supprimer">
+            <button data-admin-delete="${s.id}" data-name="${escapeHtml(s.nom)}" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer" title="Supprimer">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
               </svg>
@@ -1425,16 +1407,54 @@
           </div>
         </div>
 
+        <!-- Ligne 2 : Sélecteurs de Configuration (Équipe, Disponibilité, Salle Lundi) -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-slate-100 bg-slate-50/70 p-2.5 rounded-xl">
+          <!-- Sélecteur d'équipe -->
+          <div class="flex flex-col gap-0.5">
+            <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Équipe</span>
+            <select data-admin-equipe="${s.id}" class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs" title="Équipe d'affectation">
+              <option value="auto" ${baseTeam === 'auto' ? 'selected' : ''}>🔄 Équipe Auto</option>
+              <option value="1" ${baseTeam === '1' ? 'selected' : ''}>Équipe 1</option>
+              <option value="2" ${baseTeam === '2' ? 'selected' : ''}>Équipe 2</option>
+            </select>
+          </div>
+
+          <!-- Sélecteur de créneau horaire -->
+          <div class="flex flex-col gap-0.5">
+            <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Créneau disponible</span>
+            <select data-admin-dispo="${s.id}" class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs" title="Disponibilité horaire">
+              <option value="tous" ${dispo === 'tous' ? 'selected' : ''}>☀️/🌙 Tous</option>
+              <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>☀️ Matin uniquement</option>
+              <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>🌙 Après-midi uniquement</option>
+            </select>
+          </div>
+
+          <!-- Sélecteur de groupe / salle de départ -->
+          <div class="flex flex-col gap-0.5">
+            <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Salle de départ Lundi</span>
+            <select data-admin-group="${s.id}" class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs" title="Groupe d'affectation">
+              <option value="" ${!s.groupe ? 'selected' : ''}>Équilibré</option>
+              <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • 🔵 Triage</option>
+              <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • 🟢 Piquage</option>
+              <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • 🔴 Déchocage</option>
+              <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • 🟣 Observation</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Ligne 3 : Bannière informative automatique si contrainte ou Équipe Auto -->
         ${
-          isFixedSlot
+          (isAutoTeam || isFixedSlot)
             ? `
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 text-[11px] font-bold">
-            <div class="flex items-center gap-1.5 min-w-0">
-              <span class="text-sm shrink-0">🔄</span>
-              <span class="truncate sm:whitespace-normal">
-                <strong>Basculement 100% Automatique :</strong> Contrainte <strong>${dispo === 'matin' ? '☀️ Matin uniquement' : '🌙 Après-midi uniquement'}</strong>. Rattaché(e) automatiquement à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.
-              </span>
-            </div>
+          <div class="flex items-center gap-2 p-2 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 text-xs font-bold">
+            <span class="text-sm shrink-0">🔄</span>
+            <span class="truncate sm:whitespace-normal">
+              <strong>Adaptation 100% Automatique :</strong> ${
+                isFixedSlot
+                  ? `Contrainte <strong>${dispo === 'matin' ? '☀️ Matin uniquement' : '🌙 Après-midi uniquement'}</strong>.`
+                  : `Configuré(e) en <strong>Équipe Auto</strong>.`
+              } Rattaché(e) à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.
+            </span>
           </div>
           `
             : ''
@@ -1565,7 +1585,7 @@
     const s = state.stagiaires.find((item) => item.id === id);
     if (!s) return;
 
-    const validEquipe = (newEquipe === '2' || newEquipe === 2) ? '2' : '1';
+    const validEquipe = (newEquipe === '2' || newEquipe === 2) ? '2' : ((newEquipe === '1' || newEquipe === 1) ? '1' : 'auto');
     s.equipe = validEquipe;
 
     if (state.client && state.isSupabaseConnected) {
@@ -1573,16 +1593,18 @@
         const { error } = await state.client.from('stagiaires').update({ equipe: validEquipe }).eq('id', id);
         if (error) throw error;
         render();
-        showToast(`${s.nom} transféré(e) dans l'Équipe ${validEquipe}`, 'success');
+        const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
+        showToast(`${s.nom} configuré(e) en ${teamDesc}`, 'success');
       } catch (err) {
         console.warn('Erreur mise à jour equipe Supabase:', err);
         render();
-        showToast(`${s.nom} transféré(e) dans l'Équipe ${validEquipe} (Local)`, 'info');
+        showToast(`${s.nom} : Équipe mise à jour (Local)`, 'info');
       }
     } else {
       saveDemoStagiaires();
       render();
-      showToast(`${s.nom} transféré(e) dans l'Équipe ${validEquipe} (Démo)`, 'success');
+      const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
+      showToast(`${s.nom} configuré(e) en ${teamDesc} (Démo)`, 'success');
     }
   }
 
@@ -1617,11 +1639,11 @@
     }
   }
 
-  async function addStagiaire(nom, groupe = '', equipe = '1', disponibilite = 'tous') {
+  async function addStagiaire(nom, groupe = '', equipe = 'auto', disponibilite = 'tous') {
     const trimmed = nom.trim();
     if (!trimmed) return;
     const validGroup = ['A', 'B', 'C', 'D'].includes(groupe?.toUpperCase()) ? groupe.toUpperCase() : null;
-    const validEquipe = (equipe === '2' || equipe === 2) ? '2' : '1';
+    const validEquipe = (equipe === '2' || equipe === 2) ? '2' : ((equipe === '1' || equipe === 1) ? '1' : 'auto');
     const validDispo = ['matin', 'apres_midi', 'tous'].includes(disponibilite) ? disponibilite : 'tous';
 
     if (state.client && state.isSupabaseConnected) {
@@ -1636,14 +1658,15 @@
           const parsed = parseStudentNom(data.nom, data.groupe);
           data.nom = parsed.nom;
           data.groupe = parsed.groupe;
-          data.equipe = (data.equipe === '2' || data.equipe === 2) ? '2' : '1';
+          data.equipe = (data.equipe === '2' || data.equipe === 2) ? '2' : ((data.equipe === '1' || data.equipe === 1) ? '1' : 'auto');
           data.disponibilite = validDispo;
           state.stagiaires.push(data);
           state.stagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
           saveLocalCustomGroups();
         }
         render();
-        showToast(`${trimmed} ajouté(e) dans l'Équipe ${validEquipe}${validGroup ? ' (Groupe ' + validGroup + ')' : ''}`, 'success');
+        const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
+        showToast(`${trimmed} ajouté(e) (${teamDesc}${validGroup ? ', Groupe ' + validGroup : ''})`, 'success');
       } catch (err) {
         showToast('Erreur ajout stagiaire', 'error');
       }
@@ -1654,7 +1677,8 @@
       saveDemoStagiaires();
       saveLocalCustomGroups();
       render();
-      showToast(`${trimmed} ajouté(e) dans l'Équipe ${validEquipe} (Démo)`, 'success');
+      const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
+      showToast(`${trimmed} ajouté(e) (${teamDesc}) (Démo)`, 'success');
     }
   }
 
@@ -2004,12 +2028,13 @@
       const dispoSelect = document.getElementById('admin-new-dispo-select');
       if (nameInput && nameInput.value.trim()) {
         const groupVal = groupSelect ? groupSelect.value : '';
-        const equipeVal = equipeSelect ? equipeSelect.value : (state.adminFilterEquipe === '2' ? '2' : '1');
+        const equipeVal = equipeSelect ? equipeSelect.value : 'auto';
         const dispoVal = dispoSelect ? dispoSelect.value : 'tous';
         await addStagiaire(nameInput.value.trim(), groupVal, equipeVal, dispoVal);
         nameInput.value = '';
         if (groupSelect) groupSelect.value = '';
         if (dispoSelect) dispoSelect.value = 'tous';
+        if (equipeSelect) equipeSelect.value = 'auto';
       }
     });
 
