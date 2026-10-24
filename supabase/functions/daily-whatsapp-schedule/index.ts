@@ -377,7 +377,8 @@ async function sendToWhatsAppGateway(message: string): Promise<Record<string, un
   const whatsappChatId = Deno.env.get("WHATSAPP_CHAT_ID"); // ex: "120363023456789012@g.us" pour un groupe
 
   if (greenInstanceId && greenApiToken && whatsappChatId) {
-    const url = `https://api.green-api.com/waInstance${greenInstanceId}/sendMessage/${greenApiToken}`;
+    const greenHost = (Deno.env.get("GREEN_API_HOST") || "https://7107.api.greenapi.com").replace(/\/+$/, "");
+    const url = `${greenHost}/waInstance${greenInstanceId}/sendMessage/${greenApiToken}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

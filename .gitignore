@@ -63,3 +63,7 @@ android/*.keystore
 .vercel/
 scratch/
 /media/
+
+test_*.js
+send_*.js
+list_*.js
