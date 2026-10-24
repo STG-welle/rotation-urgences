@@ -9,6 +9,11 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
 
+  <!-- Anti-cache pour garantir les mises à jour instantanées sur mobile -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
   <!-- Favicon Logo CHUL -->
   <link rel="icon" type="image/png" href="logo-chul.png">
 
@@ -596,8 +601,8 @@
   <!-- TOASTS DE NOTIFICATION -->
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
 
-  <!-- Scripts -->
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <!-- Scripts avec versionnage anti-cache forcé -->
+  <script src="config.js?v=20261024_0345"></script>
+  <script src="app.js?v=20261024_0345"></script>
 </body>
 </html>
