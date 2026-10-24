@@ -33,9 +33,13 @@ serve(async (req: Request) => {
   const greenInstanceId = Deno.env.get("GREEN_API_INSTANCE_ID") || "";
   const greenApiToken = Deno.env.get("GREEN_API_TOKEN") || "";
   const greenHost = (Deno.env.get("GREEN_API_HOST") || "https://7107.api.greenapi.com").replace(/\/+$/, "");
-  const adminEmail = Deno.env.get("ADMIN_ALERT_EMAIL") || "";
+  const adminEmail = Deno.env.get("ADMIN_ALERT_EMAIL") || "chrystopenai@gmail.com";
   const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+  const brevoApiKey = Deno.env.get("BREVO_API_KEY") || "";
   const alertWebhookUrl = Deno.env.get("ALERT_WEBHOOK_URL") || "";
+  const telegramBotToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
+  const telegramChatId = Deno.env.get("TELEGRAM_CHAT_ID") || "";
+  const ntfyTopic = Deno.env.get("NTFY_TOPIC") || "medirappel-urgences-chryst";
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -106,6 +110,19 @@ serve(async (req: Request) => {
           Tout fonctionne normalement. Les envois de rappels et de plannings sont actifs.
         </div>
       ` : ''}
+    </div>
+
+    <div class="p-3.5 rounded-2xl bg-slate-900/60 border border-slate-700/60 text-left">
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="text-base">🔔</span>
+        <span class="text-xs font-bold text-slate-200">Alertes sur Téléphone (Sans inscription)</span>
+      </div>
+      <p class="text-[11px] text-slate-400 mb-2.5 leading-relaxed">
+        Pour faire sonner votre téléphone dès qu'une déconnexion survient :
+      </p>
+      <a href="https://ntfy.sh/${ntfyTopic}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center justify-center w-full py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-xl text-xs font-bold transition">
+        📲 S'abonner aux alertes sur ntfy.sh
+      </a>
     </div>
 
     <div class="flex gap-2">
@@ -241,7 +258,11 @@ serve(async (req: Request) => {
             qrCodeData,
             adminEmail,
             resendApiKey,
+            brevoApiKey,
             alertWebhookUrl,
+            telegramBotToken,
+            telegramChatId,
+            ntfyTopic,
             supabaseUrl
           });
         }
@@ -275,7 +296,7 @@ serve(async (req: Request) => {
 });
 
 // ==============================================================================
-// 3. ENVOI DE L'ALERTE IMMÉDIATE (Email via Resend ou Webhook)
+// 3. ENVOI DE L'ALERTE IMMÉDIATE (Push Téléphone ntfy.sh, Telegram, Email Brevo/Resend, Webhooks)
 // ==============================================================================
 async function triggerAdminAlert(opts: {
   stateInstance: string;
@@ -284,7 +305,11 @@ async function triggerAdminAlert(opts: {
   qrCodeData: string | null;
   adminEmail: string;
   resendApiKey: string;
+  brevoApiKey: string;
   alertWebhookUrl: string;
+  telegramBotToken: string;
+  telegramChatId: string;
+  ntfyTopic: string;
   supabaseUrl: string;
 }) {
   const dateFormatted = new Date(opts.timeIso).toLocaleString("fr-FR", { timeZone: "Africa/Libreville" });
@@ -292,48 +317,111 @@ async function triggerAdminAlert(opts: {
 
   console.warn(`🚨 [ALERTE CRITIQUE] WhatsApp déconnecté ! Statut : ${opts.stateInstance} à ${dateFormatted}`);
 
-  // Option 1 : Alerte Email par Resend (si configuré)
-  if (opts.resendApiKey && opts.adminEmail) {
+  // Canal 1 : Notification Push immédiate sur téléphone via ntfy.sh (100% Gratuit, Zéro Inscription requise)
+  if (opts.ntfyTopic) {
     try {
-      const emailHtml = `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
-          <div style="text-align: center; margin-bottom: 20px;">
-            <span style="font-size: 40px;">🚨</span>
-            <h2 style="color: #dc2626; margin: 8px 0 4px 0;">Alerte Déconnexion WhatsApp (Green API)</h2>
-            <p style="color: #64748b; font-size: 13px; margin: 0;">Système de Monitoring MediRappel / Urgences</p>
-          </div>
+      await fetch(`https://ntfy.sh/${opts.ntfyTopic}`, {
+        method: "POST",
+        headers: {
+          "Title": "Alerte Deconnexion WhatsApp",
+          "Priority": "high",
+          "Tags": "warning,rotating_light",
+          "Click": qrViewUrl,
+          "Actions": `view, Scanner QR Code, ${qrViewUrl}`
+        },
+        body: `Attention : L instance WhatsApp ${opts.instanceId} s est deconnectee (${opts.stateInstance}) a ${dateFormatted}. Cliquez pour ouvrir le QR Code.`
+      });
+      console.log(`Notification push transmise sur ntfy.sh topic : https://ntfy.sh/${opts.ntfyTopic}`);
+    } catch (ntfyErr) {
+      console.warn("Échec alerte ntfy :", ntfyErr);
+    }
+  }
 
-          <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
-            <p style="margin: 0 0 8px 0; color: #991b1b; font-weight: bold; font-size: 14px;">⚠️ L'instance WhatsApp s'est déconnectée !</p>
-            <ul style="margin: 0; padding-left: 20px; color: #7f1d1d; font-size: 13px; line-height: 1.6;">
-              <li><strong>Statut détecté :</strong> <span style="background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${opts.stateInstance}</span></li>
-              <li><strong>Instance ID :</strong> ${opts.instanceId}</li>
-              <li><strong>Heure de coupure :</strong> ${dateFormatted} (Heure locale)</li>
-            </ul>
-          </div>
+  // Canal 2 : Notification Telegram Bot
+  if (opts.telegramBotToken && opts.telegramChatId) {
+    try {
+      const tgText = `🚨 *ALERTE DÉCONNEXION WHATSAPP*\n\n` +
+        `⚠️ *Statut :* \`${opts.stateInstance}\`\n` +
+        `📱 *Instance :* \`${opts.instanceId}\`\n` +
+        `🕒 *Heure :* ${dateFormatted}\n\n` +
+        `📲 [Cliquez ici pour scanner le QR Code](${qrViewUrl})`;
 
-          ${opts.qrCodeData ? `
-            <div style="text-align: center; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 20px;">
-              <p style="color: #0f172a; font-weight: bold; font-size: 14px; margin: 0 0 12px 0;">Scannez directement le QR Code ci-dessous :</p>
-              <img src="${opts.qrCodeData.startsWith('data:') ? opts.qrCodeData : `data:image/png;base64,${opts.qrCodeData}`}" alt="QR Code WhatsApp" style="width: 240px; height: 240px; border-radius: 8px; border: 1px solid #cbd5e1;" />
-              <p style="color: #64748b; font-size: 11px; margin-top: 8px;">Ouvrez WhatsApp sur votre téléphone > Appareils connectés > Connecter un appareil</p>
-            </div>
-          ` : `
-            <div style="text-align: center; margin-bottom: 20px;">
-              <a href="${qrViewUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: bold; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-size: 14px;">
-                📲 Ouvrir la page de reconnexion (QR Code)
-              </a>
-            </div>
-          `}
+      await fetch(`https://api.telegram.org/bot${opts.telegramBotToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: opts.telegramChatId,
+          text: tgText,
+          parse_mode: "Markdown"
+        })
+      });
+      console.log("Alerte Telegram transmise avec succès.");
+    } catch (tgErr) {
+      console.error("Échec alerte Telegram :", tgErr);
+    }
+  }
 
-          <div style="text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
-            <a href="${qrViewUrl}" style="color: #2563eb; font-size: 12px; font-weight: 600; text-decoration: underline;">
-              Lien direct vers la page de scan QR Code
-            </a>
-          </div>
+  // Canal 3 : Alerte Email (Brevo ou Resend)
+  const emailHtml = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 40px;">🚨</span>
+        <h2 style="color: #dc2626; margin: 8px 0 4px 0;">Alerte Déconnexion WhatsApp (Green API)</h2>
+        <p style="color: #64748b; font-size: 13px; margin: 0;">Système de Monitoring MediRappel / Urgences</p>
+      </div>
+
+      <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+        <p style="margin: 0 0 8px 0; color: #991b1b; font-weight: bold; font-size: 14px;">⚠️ L'instance WhatsApp s'est déconnectée !</p>
+        <ul style="margin: 0; padding-left: 20px; color: #7f1d1d; font-size: 13px; line-height: 1.6;">
+          <li><strong>Statut détecté :</strong> <span style="background: #fee2e2; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${opts.stateInstance}</span></li>
+          <li><strong>Instance ID :</strong> ${opts.instanceId}</li>
+          <li><strong>Heure de coupure :</strong> ${dateFormatted} (Heure locale)</li>
+        </ul>
+      </div>
+
+      ${opts.qrCodeData ? `
+        <div style="text-align: center; padding: 20px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; margin-bottom: 20px;">
+          <p style="color: #0f172a; font-weight: bold; font-size: 14px; margin: 0 0 12px 0;">Scannez directement le QR Code ci-dessous :</p>
+          <img src="${opts.qrCodeData.startsWith('data:') ? opts.qrCodeData : `data:image/png;base64,${opts.qrCodeData}`}" alt="QR Code WhatsApp" style="width: 240px; height: 240px; border-radius: 8px; border: 1px solid #cbd5e1;" />
+          <p style="color: #64748b; font-size: 11px; margin-top: 8px;">Ouvrez WhatsApp sur votre téléphone > Appareils connectés > Connecter un appareil</p>
         </div>
-      `;
+      ` : `
+        <div style="text-align: center; margin-bottom: 20px;">
+          <a href="${qrViewUrl}" style="display: inline-block; background: #2563eb; color: #ffffff; font-weight: bold; padding: 12px 24px; border-radius: 10px; text-decoration: none; font-size: 14px;">
+            📲 Ouvrir la page de reconnexion (QR Code)
+          </a>
+        </div>
+      `}
 
+      <div style="text-align: center; border-top: 1px solid #f1f5f9; padding-top: 16px;">
+        <a href="${qrViewUrl}" style="color: #2563eb; font-size: 12px; font-weight: 600; text-decoration: underline;">
+          Lien direct vers la page de scan QR Code
+        </a>
+      </div>
+    </div>
+  `;
+
+  if (opts.brevoApiKey && opts.adminEmail) {
+    try {
+      await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": opts.brevoApiKey,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          sender: { name: "MediRappel Alertes", email: "alertes@medirappel.com" },
+          to: [{ email: opts.adminEmail }],
+          subject: `🚨 URGENT : Déconnexion WhatsApp (${opts.stateInstance}) - QR Code à rescanner`,
+          htmlContent: emailHtml
+        })
+      });
+      console.log(`Email d'alerte Brevo envoyé avec succès à ${opts.adminEmail}`);
+    } catch (e) {
+      console.error("Échec email Brevo :", e);
+    }
+  } else if (opts.resendApiKey && opts.adminEmail) {
+    try {
       await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
@@ -347,13 +435,13 @@ async function triggerAdminAlert(opts: {
           html: emailHtml
         })
       });
-      console.log(`Email d'alerte envoyé avec succès à ${opts.adminEmail}`);
+      console.log(`Email d'alerte Resend envoyé avec succès à ${opts.adminEmail}`);
     } catch (e) {
-      console.error("Échec de l'envoi de l'email d'alerte :", e);
+      console.error("Échec de l'envoi de l'email d'alerte Resend :", e);
     }
   }
 
-  // Option 2 : Alerte Webhook externe (Slack, Discord, Telegram, Backend MediRappel)
+  // Canal 4 : Webhook externe (Slack, Discord, Backend tiers)
   if (opts.alertWebhookUrl) {
     try {
       const isDiscord = opts.alertWebhookUrl.includes("discord.com");
