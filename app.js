@@ -303,10 +303,12 @@
   }
 
   // Calcul de l'alternance hebdomadaire des créneaux (Matinée vs Après-midi)
-  // Référence : Lundi 26 Octobre 2026 (Semaine 0) -> Équipe 1 = Matinée, Équipe 2 = Après-midi
-  // Inversion automatique chaque lundi : Semaine 1 -> Équipe 1 = Après-midi, Équipe 2 = Matinée
+  // Référence : Lundi 19 Octobre 2026 (Semaine 0) -> Équipe 1 = Matinée, Équipe 2 = Après-midi
+  // Inversion automatique chaque lundi :
+  // - Semaine du 26 Octobre (Semaine 1) : Équipe 1 = Après-midi, Équipe 2 = Matinée
+  // - Semaine du 02 Novembre (Semaine 2) : Équipe 1 = Matinée, Équipe 2 = Après-midi
   function getWeekShifts(targetMonday) {
-    const refMonday = new Date(2026, 9, 26); // Lundi 26 octobre 2026
+    const refMonday = new Date(2026, 9, 19); // Lundi 19 octobre 2026
     refMonday.setHours(0, 0, 0, 0);
     const diffDays = Math.round((targetMonday.getTime() - refMonday.getTime()) / (24 * 60 * 60 * 1000));
     const weekIndex = Math.floor(diffDays / 7);

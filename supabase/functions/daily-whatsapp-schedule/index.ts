@@ -196,8 +196,10 @@ serve(async (req: Request) => {
     const roomAssignmentsTeam2 = (isWeekend || !hasTeam2) ? [] : buildAssignments(groupsTeam2);
 
     // 8. Calcul de l'alternance hebdomadaire des créneaux (Matinée vs Après-midi)
-    // Référence : Lundi 26 Octobre 2026 (Semaine 0) -> Équipe 1 = Matinée, Équipe 2 = Après-midi
-    // Inversion automatique chaque lundi : Semaine 1 -> Équipe 1 = Après-midi, Équipe 2 = Matinée
+    // Référence : Lundi 19 Octobre 2026 (Semaine 0) -> Équipe 1 = Matinée, Équipe 2 = Après-midi
+    // Inversion automatique chaque lundi :
+    // - Semaine du 26 Octobre (Semaine 1) : Équipe 1 = Après-midi, Équipe 2 = Matinée
+    // - Semaine du 02 Novembre (Semaine 2) : Équipe 1 = Matinée, Équipe 2 = Après-midi
     function getUtcMonday(d: Date): Date {
       const date = new Date(d);
       const day = date.getUTCDay();
@@ -208,7 +210,7 @@ serve(async (req: Request) => {
       return monday;
     }
 
-    const refMonday = new Date(Date.UTC(2026, 9, 26, 0, 0, 0));
+    const refMonday = new Date(Date.UTC(2026, 9, 19, 0, 0, 0));
     const currentMonday = getUtcMonday(targetDate);
     const diffDays = Math.round((currentMonday.getTime() - refMonday.getTime()) / (24 * 60 * 60 * 1000));
     const weekIndex = Math.floor(diffDays / 7);
