@@ -528,8 +528,12 @@
     if (sortedStudents.length === 0) {
       tbody.innerHTML = `
         <tr>
-          <td colspan="8" class="p-8 text-center text-xs text-slate-400 italic">
-            Aucun stagiaire enregistré.
+          <td colspan="8" class="p-8 text-center text-xs text-slate-500 font-semibold bg-slate-50/50">
+            <div class="max-w-md mx-auto space-y-2">
+              <span class="text-3xl">👥</span>
+              <p class="font-bold text-slate-700 text-sm">Aucun stagiaire dans la base pour le moment.</p>
+              <p class="text-xs text-slate-500">Cliquez sur <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">🔒 Admin</strong> en haut à droite (code : <strong>1234</strong>) pour ajouter vos collègues.</p>
+            </div>
           </td>
         </tr>
       `;
