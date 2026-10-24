@@ -101,6 +101,9 @@
         <p class="text-[11px] text-slate-500 mb-3">
           💡 Aucun scan requis tant que ce statut est vert. En cas de coupure inattendue, le bot Telegram vous alertera avec la photo du QR code et affichera le QR code ici même.
         </p>
+        <button id="btn-demo-qr" class="w-full py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700/50 transition cursor-pointer">
+          👁️ Tester l'affichage du QR Code (Simulation)
+        </button>
       </div>
     </div>
 
@@ -154,6 +157,10 @@
           <div id="countdown-bar" class="bg-blue-500 h-full w-full transition-all duration-1000 ease-linear"></div>
         </div>
       </div>
+
+      <button id="btn-exit-demo" class="hidden w-full py-2.5 px-3 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 text-xs font-bold transition cursor-pointer">
+        ← Revenir au statut WhatsApp en direct
+      </button>
     </div>
 
     <!-- État 3 : ERREUR -->
@@ -269,6 +276,26 @@
       elLoading.classList.remove("hidden");
       checkWhatsAppStatus().then(() => startCountdown());
     });
+
+    // Boutons de simulation de démonstration
+    const elBtnDemo = document.getElementById("btn-demo-qr");
+    const elBtnExitDemo = document.getElementById("btn-exit-demo");
+
+    if (elBtnDemo && elBtnExitDemo) {
+      elBtnDemo.addEventListener("click", () => {
+        hideAllStates();
+        elQrImg.src = "https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=https://stg-welle.github.io/rotation-urgences/qr.html";
+        elDisconnected.classList.remove("hidden");
+        elBtnExitDemo.classList.remove("hidden");
+      });
+
+      elBtnExitDemo.addEventListener("click", () => {
+        elBtnExitDemo.classList.add("hidden");
+        hideAllStates();
+        elLoading.classList.remove("hidden");
+        checkWhatsAppStatus().then(() => startCountdown());
+      });
+    }
 
     // Chargement initial
     checkWhatsAppStatus().then(() => startCountdown());
