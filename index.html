@@ -2,7 +2,7 @@
 <html lang="fr" class="h-full bg-slate-100 text-slate-800">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Emploi du Temps Quotidien • Urgences Stagiaires</title>
   <meta name="description" content="Emploi du temps et rotation journalière des étudiants stagiaires en soins infirmiers aux urgences hospitalières.">
   <meta name="theme-color" content="#1e293b">
@@ -25,6 +25,9 @@
         extend: {
           fontFamily: {
             sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          screens: {
+            'xs': '420px',
           }
         }
       }
@@ -35,6 +38,12 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
+    /* Empêche tout débordement horizontal indésirable au niveau de la page */
+    html, body {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
+
     body {
       -webkit-tap-highlight-color: transparent;
       font-feature-settings: "cv02", "cv03", "cv04", "cv11";
@@ -51,7 +60,7 @@
       left: 0;
       z-index: 10;
       background-color: #ffffff;
-      box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.08);
+      box-shadow: 2px 0 6px -2px rgba(0, 0, 0, 0.12);
     }
     th.sticky-col {
       z-index: 20;
@@ -74,52 +83,61 @@
     .col-today {
       background-color: #eff6ff !important;
     }
+
+    /* Masquer la scrollbar tout en conservant le défilement tactile */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
   </style>
 </head>
 <body class="min-h-full flex flex-col font-sans antialiased text-slate-800 bg-slate-100">
 
   <!-- ========================================================================= -->
-  <!-- EN-TÊTE PRINCIPAL                                                         -->
+  <!-- EN-TÊTE PRINCIPAL (RESPONSIVE MOBILE FIRST)                               -->
   <!-- ========================================================================= -->
   <header class="sticky top-0 z-30 bg-white border-b border-slate-300 shadow-xs">
-    <div class="max-w-7xl mx-auto px-3 sm:px-6 h-16 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-2.5 sm:px-6 py-2 sm:py-0 min-h-[3.5rem] sm:h-16 flex items-center justify-between gap-2">
       
       <!-- Titre & Service -->
-      <div class="flex items-center gap-2.5">
-        <div class="w-10 h-10 rounded-xl bg-blue-700 flex items-center justify-center text-white font-extrabold text-xl shadow-xs">
+      <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-blue-700 flex items-center justify-center text-white font-extrabold text-lg sm:text-xl shadow-xs shrink-0">
           📅
         </div>
-        <div>
-          <h1 class="text-base sm:text-lg font-black tracking-tight text-slate-900 leading-tight">
+        <div class="min-w-0">
+          <h1 class="text-sm sm:text-base md:text-lg font-black tracking-tight text-slate-900 leading-tight truncate">
             Emploi du Temps • Urgences
           </h1>
-          <p class="text-[11px] font-semibold text-slate-500">
-            Rotation <strong class="text-blue-700">quotidienne (tous les jours)</strong> des stagiaires
+          <p class="text-[10px] sm:text-[11px] font-semibold text-slate-500 truncate">
+            Rotation <strong class="text-blue-700">quotidienne</strong> des stagiaires
           </p>
         </div>
       </div>
 
       <!-- Actions de droite : Statut, Partage WhatsApp, Paramètres, Admin -->
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-1 sm:gap-2 shrink-0">
         <!-- Statut Supabase / Démo -->
-        <button id="status-pill" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition" title="Statut de connexion">
+        <button id="status-pill" class="inline-flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-bold transition" title="Statut de connexion">
           <span class="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
           <span class="hidden sm:inline">Chargement...</span>
         </button>
 
         <!-- Bouton WhatsApp -->
-        <button id="btn-share-whatsapp" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95" title="Copier pour WhatsApp">
+        <button id="btn-share-whatsapp" class="inline-flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs transition active:scale-95" title="Copier pour WhatsApp">
           <span class="text-sm">📱</span>
-          <span class="hidden sm:inline">WhatsApp</span>
+          <span class="hidden md:inline">WhatsApp</span>
         </button>
 
         <!-- Paramètres Supabase -->
-        <button id="btn-open-config" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition" title="Configuration Supabase">
+        <button id="btn-open-config" class="p-1.5 sm:p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition" title="Configuration Supabase">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
         </button>
 
         <!-- Admin (Cadenas) -->
-        <button id="btn-open-admin" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition" title="Administration des présences">
+        <button id="btn-open-admin" class="flex items-center gap-1 px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition" title="Administration des présences">
           <span class="text-amber-400 text-xs">🔒</span>
           <span class="hidden sm:inline">Admin</span>
         </button>
@@ -131,55 +149,55 @@
   <!-- ========================================================================= -->
   <!-- CONTENU PRINCIPAL                                                         -->
   <!-- ========================================================================= -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 space-y-4">
+  <main class="flex-1 max-w-7xl w-full mx-auto px-2.5 sm:px-6 py-3 sm:py-4 space-y-3.5 sm:space-y-4">
 
-    <!-- BANDEAU SEMAINE, RECHERCHE ET SÉLECTION D'AFFICHAGE -->
+    <!-- BANDEAU SEMAINE & RECHERCHE RAPIDE -->
     <div class="bg-white rounded-2xl p-3 sm:p-4 border border-slate-300 shadow-xs space-y-3">
       
-      <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <!-- Date de la semaine -->
-        <div class="flex items-center gap-3">
-          <div class="p-2.5 bg-blue-50 text-blue-700 rounded-xl font-bold text-lg hidden sm:block">
+        <div class="flex items-center gap-2.5 sm:gap-3">
+          <div class="p-2 sm:p-2.5 bg-blue-50 text-blue-700 rounded-xl font-bold text-base sm:text-lg shrink-0">
             🗓️
           </div>
-          <div>
-            <div class="flex items-center gap-2">
-              <span id="week-badge" class="px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span id="week-badge" class="px-2 py-0.5 rounded-full text-[10px] sm:text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200">
                 Semaine en cours
               </span>
-              <span class="text-xs text-slate-500 font-bold">• Rotation quotidienne (7j/7)</span>
+              <span class="text-[11px] text-slate-500 font-bold">• Rotation quotidienne</span>
             </div>
-            <h2 id="week-title" class="text-base sm:text-lg font-black text-slate-900 mt-0.5">
+            <h2 id="week-title" class="text-sm sm:text-base md:text-lg font-black text-slate-900 mt-0.5 truncate">
               Chargement des dates...
             </h2>
           </div>
         </div>
 
-        <!-- Navigation de semaine en semaine -->
-        <div class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl self-start sm:self-auto border border-slate-200">
-          <button id="btn-week-prev" class="px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-white text-xs font-bold transition flex items-center gap-1">
-            <span>‹</span> Semaine préc.
+        <!-- Navigation de semaine en semaine (pleine largeur sur mobile) -->
+        <div class="flex items-center justify-between sm:justify-start gap-1 bg-slate-100 p-1 rounded-xl w-full sm:w-auto border border-slate-200">
+          <button id="btn-week-prev" class="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-white text-xs font-bold transition flex items-center justify-center gap-1">
+            <span>‹</span> <span class="hidden sm:inline">Semaine préc.</span><span class="sm:hidden">Préc.</span>
           </button>
-          <button id="btn-week-today" class="px-3 py-1.5 rounded-lg bg-white text-slate-900 text-xs font-black shadow-xs transition">
+          <button id="btn-week-today" class="flex-1 sm:flex-initial px-3 py-1.5 rounded-lg bg-white text-slate-900 text-xs font-black shadow-xs transition text-center">
             Aujourd'hui
           </button>
-          <button id="btn-week-next" class="px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-white text-xs font-bold transition flex items-center gap-1">
-            Semaine suiv. <span>›</span>
+          <button id="btn-week-next" class="flex-1 sm:flex-initial px-2.5 py-1.5 rounded-lg text-slate-700 hover:bg-white text-xs font-bold transition flex items-center justify-center gap-1">
+            <span class="hidden sm:inline">Semaine suiv.</span><span class="sm:hidden">Suiv.</span> <span>›</span>
           </button>
         </div>
       </div>
 
       <!-- Barre de recherche rapide de stagiaire -->
-      <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2.5">
-        <div class="relative w-full sm:flex-1">
+      <div class="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center gap-2">
+        <div class="relative w-full">
           <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
             🔍
           </div>
           <input 
             type="text" 
             id="student-search-input" 
-            placeholder="Tape ton prénom pour repérer ta ligne sur la semaine (ex: Camille, Thomas...)" 
-            class="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+            placeholder="Tape ton prénom pour trouver ta salle (ex: Camille, Thomas...)" 
+            class="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-base sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
           >
           <button id="btn-clear-search" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 hidden">
             ✕
@@ -188,22 +206,77 @@
       </div>
 
       <!-- Bandeau d'information personnalisée si recherche active -->
-      <div id="my-assignment-banner" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex flex-wrap items-center justify-between gap-2">
+      <div id="my-assignment-banner" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <!-- Rempli par app.js -->
       </div>
 
     </div>
 
     <!-- ======================================================================= -->
-    <!-- GRAND TABLEAU D'EMPLOI DU TEMPS AVEC TOUS LES JOURS (LUN-DIM)            -->
+    <!-- SÉLECTEUR DE VUE : VUE PAR JOUR (CARTES) VS GRILLE SEMAINE (TABLEAU)     -->
     <!-- ======================================================================= -->
-    <div id="view-timetable" class="space-y-3">
-      <div class="flex items-center justify-between">
-        <h3 class="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-          <span>📊</span> Emploi du Temps Quotidien de la Semaine
-        </h3>
-        <span class="text-xs text-slate-500 font-semibold">
-          <strong id="count-active-students" class="text-slate-900">12</strong> stagiaires actifs • Rotation chaque jour
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+      <!-- Boutons de bascule de vue -->
+      <div class="inline-flex p-1 bg-slate-200/90 rounded-2xl border border-slate-300 shadow-inner w-full sm:w-auto">
+        <button 
+          id="btn-view-cards" 
+          class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all bg-white text-blue-900 shadow-xs"
+        >
+          <span>📱</span> Vue Par Jour (Cartes)
+        </button>
+        <button 
+          id="btn-view-timetable" 
+          class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all text-slate-600 hover:text-slate-900"
+        >
+          <span>📊</span> Grille Semaine (Tableau)
+        </button>
+      </div>
+
+      <div class="flex items-center justify-between sm:justify-end gap-2 text-xs font-semibold text-slate-500 px-1">
+        <span class="inline-flex items-center gap-1">
+          👥 <strong id="count-active-students" class="text-slate-900">0</strong> stagiaires actifs
+        </span>
+        <span class="text-slate-300 hidden sm:inline">•</span>
+        <span class="text-[11px] text-slate-400">Rotation chaque jour à 00h00</span>
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- 1. VUE PAR JOUR : CARTES DES SALLES (OPTIMISÉE SMARTPHONES & TABLETTES) -->
+    <!-- ======================================================================= -->
+    <div id="view-cards" class="space-y-3">
+      <!-- Sélecteur de jour défilant -->
+      <div class="bg-white rounded-2xl p-2 sm:p-2.5 border border-slate-300 shadow-xs">
+        <div class="text-[10px] font-black uppercase tracking-wider text-slate-400 px-2 py-1 flex items-center justify-between">
+          <span>📅 Choisissez un jour :</span>
+          <span class="text-blue-600 font-bold normal-case text-[11px] sm:hidden">Glissez ↔️</span>
+        </div>
+        <div id="day-pills-container" class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
+          <!-- Rempli par app.js (7 boutons Lundi à Dimanche) -->
+        </div>
+      </div>
+
+      <!-- Titre du jour sélectionné -->
+      <div id="selected-day-header" class="flex items-center justify-between px-1">
+        <!-- Rempli par app.js -->
+      </div>
+
+      <!-- Grille des 4 cartes de salle ou Repos week-end -->
+      <div id="day-cards-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <!-- Rempli par app.js -->
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- 2. VUE TABLEAU D'EMPLOI DU TEMPS COMPLET DE LA SEMAINE (LUN-DIM)         -->
+    <!-- ======================================================================= -->
+    <div id="view-timetable" class="space-y-2.5 hidden">
+      <div class="flex items-center justify-between text-xs text-slate-500 font-medium px-1">
+        <span class="sm:hidden text-[11px] text-blue-700 font-bold flex items-center gap-1">
+          👉 Faites glisser le tableau horizontalement pour voir toute la semaine
+        </span>
+        <span class="hidden sm:inline">
+          Vue d'ensemble complète sur les 7 jours de la semaine
         </span>
       </div>
 
@@ -213,10 +286,10 @@
             <thead>
               <tr class="bg-slate-100 text-slate-900 font-black uppercase text-center" id="timetable-header-row">
                 <!-- Colonne Étudiant (Fixe à gauche) -->
-                <th class="p-3 sticky-col text-left min-w-[170px] bg-slate-100 border-b-2 border-slate-300">
+                <th class="p-2 sm:p-3 sticky-col text-left min-w-[120px] sm:min-w-[170px] bg-slate-100 border-b-2 border-slate-300 text-[11px] sm:text-xs">
                   Étudiant Stagiaire
                 </th>
-                <!-- 7 Colonnes générées dynamiquement (LUN, MAR, MER, JEU, VEN, SAM, DIM avec dates) -->
+                <!-- 7 Colonnes générées dynamiquement -->
               </tr>
             </thead>
             <tbody id="timetable-body" class="divide-y divide-slate-200">
@@ -227,27 +300,27 @@
       </div>
     </div>
 
-    <!-- LÉGENDE DES COULEURS DES SALLES (1 SEUL POINT PAR SALLE) -->
-    <div class="bg-white rounded-2xl p-3 border border-slate-300 shadow-xs flex flex-wrap items-center justify-around gap-2 text-xs font-bold">
+    <!-- LÉGENDE DES COULEURS DES SALLES (1 SEUL POINT PAR SALLE - RESPONSIVE) -->
+    <div class="bg-white rounded-2xl p-3 border border-slate-300 shadow-xs grid grid-cols-2 sm:grid-cols-3 md:flex items-center justify-around gap-2 text-xs font-bold">
       <div class="flex items-center gap-1.5 text-blue-800">
         <span class="text-base leading-none">🔵</span>
-        <span>Triage (Accueil & Tri)</span>
+        <span>Triage (Accueil)</span>
       </div>
       <div class="flex items-center gap-1.5 text-emerald-800">
         <span class="text-base leading-none">🟢</span>
-        <span>Piquage (VVP, Bilans, Soins)</span>
+        <span>Piquage (Soins)</span>
       </div>
       <div class="flex items-center gap-1.5 text-rose-800">
         <span class="text-base leading-none">🔴</span>
-        <span>Déchocage (SAUV / Vital)</span>
+        <span>Déchocage (SAUV)</span>
       </div>
       <div class="flex items-center gap-1.5 text-purple-800">
         <span class="text-base leading-none">🟣</span>
-        <span>Observation (Surveillance UHCD)</span>
+        <span>Observation (UHCD)</span>
       </div>
-      <div class="flex items-center gap-1.5 text-slate-600">
+      <div class="flex items-center gap-1.5 text-slate-600 col-span-2 sm:col-span-1">
         <span class="text-base leading-none">⚪</span>
-        <span>R.A.S (Samedi & Dimanche)</span>
+        <span>R.A.S (Week-end)</span>
       </div>
     </div>
 

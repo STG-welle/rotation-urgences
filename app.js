@@ -29,6 +29,7 @@
     weekOffset: 0,
     simulatedDayOffset: 0, // 0 = temps réel, 1 = simule demain, 2 = après-demain, etc.
     selectedDayIndex: null, // 0 = Lundi, ..., 6 = Dimanche (par défaut = aujourd'hui)
+    activeView: localStorage.getItem('urgences_active_view') || (window.innerWidth < 768 ? 'cards' : 'table'),
     searchQuery: '',
 
     // Administration
@@ -371,9 +372,12 @@
     renderHeaderStatus();
     renderWeekHeader(schedule);
     renderSearchBanner(schedule);
+    renderViewSwitcher();
+    renderDayView(schedule);
     renderTimetable(schedule);
     renderAdminPanel();
   }
+
 
   function renderHeaderStatus() {
     const pill = document.getElementById('status-pill');
@@ -502,15 +506,15 @@
 
       banner.classList.remove('hidden');
       banner.innerHTML = `
-        <div class="flex items-center gap-2.5">
-          <span class="text-xl">${isTodayWeekend ? '🏖️' : '📍'}</span>
-          <div>
-            <span class="font-black text-sm text-slate-900">${escapeHtml(found.nom)}</span> :
+        <div class="flex items-center gap-2">
+          <span class="text-xl shrink-0">${isTodayWeekend ? '🏖️' : '📍'}</span>
+          <div class="leading-snug">
+            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)}</span> :
             ${schedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
             ${todayText}.
           </div>
         </div>
-        <div class="text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
+        <div class="text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded-lg w-full sm:w-auto text-center sm:text-left shadow-2xs">
           ${tomorrowText}
         </div>
       `;
@@ -521,7 +525,213 @@
   }
 
   // ============================================================================
-  // TABLEAU D'EMPLOI DU TEMPS COMPLET (7 JOURS : LUN À DIM)
+  // BASCULE DE VUE (CARTES DU JOUR VS GRILLE COMPLÈTE)
+  // ============================================================================
+  function renderViewSwitcher() {
+    const btnCards = document.getElementById('btn-view-cards');
+    const btnTimetable = document.getElementById('btn-view-timetable');
+    const viewCards = document.getElementById('view-cards');
+    const viewTimetable = document.getElementById('view-timetable');
+
+    if (!btnCards || !btnTimetable || !viewCards || !viewTimetable) return;
+
+    const isCards = state.activeView === 'cards';
+
+    if (isCards) {
+      viewCards.classList.remove('hidden');
+      viewTimetable.classList.add('hidden');
+
+      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all bg-white text-blue-900 shadow-xs';
+      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all text-slate-600 hover:text-slate-900';
+    } else {
+      viewCards.classList.add('hidden');
+      viewTimetable.classList.remove('hidden');
+
+      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all text-slate-600 hover:text-slate-900';
+      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all bg-white text-blue-900 shadow-xs';
+    }
+  }
+
+  // ============================================================================
+  // 1. VUE PAR JOUR (CARTES ADAPTÉES MOBILE & TOUS ÉCRANS)
+  // ============================================================================
+  function renderDayView(schedule) {
+    const pillsContainer = document.getElementById('day-pills-container');
+    const dayHeader = document.getElementById('selected-day-header');
+    const cardsGrid = document.getElementById('day-cards-grid');
+    if (!pillsContainer || !cardsGrid) return;
+
+    if (state.selectedDayIndex === null || state.selectedDayIndex < 0 || state.selectedDayIndex > 6) {
+      initCurrentDayIndex();
+    }
+    const selIdx = state.selectedDayIndex;
+
+    // 1. Boutons pilules des 7 jours
+    let pillsHtml = '';
+    schedule.daysData.forEach((d) => {
+      const isSelected = d.dayIndex === selIdx;
+      const isToday = d.isToday;
+      const isWeekend = d.isWeekend;
+
+      let pillClass = '';
+      if (isSelected) {
+        pillClass = 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400 font-black';
+      } else if (isToday) {
+        pillClass = 'bg-blue-50 text-blue-900 border-2 border-blue-400 hover:bg-blue-100 font-extrabold';
+      } else if (isWeekend) {
+        pillClass = 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 font-semibold';
+      } else {
+        pillClass = 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 font-bold';
+      }
+
+      pillsHtml += `
+        <button 
+          type="button" 
+          data-day-index="${d.dayIndex}"
+          class="day-pill-btn shrink-0 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs transition flex flex-col items-center min-w-[70px] sm:min-w-[82px] cursor-pointer ${pillClass}"
+        >
+          <div class="flex items-center gap-1 leading-tight">
+            <span>${d.dayInfo.short}</span>
+            ${isToday ? '<span class="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-amber-400 text-slate-900 font-black">Auj.</span>' : ''}
+            ${isWeekend && !isToday ? '<span class="text-[9px] text-slate-400">⚪</span>' : ''}
+          </div>
+          <span class="text-[10px] opacity-80 mt-0.5">${d.dateFormatted}</span>
+        </button>
+      `;
+    });
+    pillsContainer.innerHTML = pillsHtml;
+
+    pillsContainer.querySelectorAll('.day-pill-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.getAttribute('data-day-index'), 10);
+        state.selectedDayIndex = idx;
+        render();
+      });
+    });
+
+    // 2. En-tête du jour sélectionné
+    const activeDay = schedule.daysData[selIdx] || schedule.daysData[0];
+    if (dayHeader) {
+      dayHeader.innerHTML = `
+        <div class="flex items-center gap-2">
+          <span class="text-sm sm:text-base font-black text-slate-900">
+            ${activeDay.dayInfo.label} ${activeDay.dateFormatted}
+          </span>
+          ${
+            activeDay.isToday
+              ? '<span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider">Aujourd\'hui</span>'
+              : activeDay.isWeekend
+              ? '<span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-slate-200 text-slate-700 uppercase tracking-wider">Repos</span>'
+              : ''
+          }
+        </div>
+        <span class="text-[11px] font-bold text-slate-500">
+          ${activeDay.isWeekend ? 'Week-end' : 'Jour ouvré'}
+        </span>
+      `;
+    }
+
+    // 3. Grille des 4 cartes ou message Week-end
+    if (activeDay.isWeekend) {
+      cardsGrid.innerHTML = `
+        <div class="col-span-full bg-gradient-to-br from-slate-50 to-slate-100 rounded-3xl p-6 sm:p-8 text-center border-2 border-dashed border-slate-300 shadow-xs">
+          <span class="text-4xl sm:text-5xl mb-3 block">🏖️</span>
+          <h3 class="text-base sm:text-lg font-black text-slate-900">Week-end • Repos Général (R.A.S)</h3>
+          <p class="text-xs sm:text-sm text-slate-600 max-w-md mx-auto mt-1 font-medium">
+            Aucun étudiant stagiaire n'est de garde le samedi et le dimanche.
+          </p>
+          <div class="inline-flex items-center gap-1.5 mt-4 px-3.5 py-1.5 rounded-full bg-white border border-slate-300 text-slate-700 text-xs font-bold shadow-2xs">
+            <span>⚪</span> Reprise automatique de la rotation le <strong>Lundi matin à 00h00</strong>
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    const query = state.searchQuery.trim().toLowerCase();
+    let cardsHtml = '';
+
+    activeDay.roomAssignments.forEach((room) => {
+      const isRoomHighlighted = query && room.students.some((s) => s.nom.toLowerCase().includes(query));
+
+      let studentsHtml = '';
+      if (room.students.length === 0) {
+        studentsHtml = `
+          <div class="p-3 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
+            Aucun stagiaire affecté
+          </div>
+        `;
+      } else {
+        studentsHtml = room.students
+          .map((student) => {
+            const isMatch = query && student.nom.toLowerCase().includes(query);
+            return `
+              <div class="flex items-center justify-between p-2 rounded-xl transition ${
+                isMatch
+                  ? 'bg-amber-100 border-2 border-amber-400 ring-2 ring-amber-300 text-amber-950 font-black shadow-xs'
+                  : 'bg-slate-50/90 border border-slate-100 text-slate-800'
+              }">
+                <div class="flex items-center gap-2 truncate">
+                  <span class="w-6 h-6 rounded-full bg-white text-slate-700 font-bold flex items-center justify-center text-[10px] shrink-0 border border-slate-200 shadow-2xs">
+                    ${getInitials(student.nom)}
+                  </span>
+                  <span class="text-xs ${isMatch ? 'font-black text-amber-950' : 'font-semibold'} truncate">
+                    ${escapeHtml(student.nom)}
+                  </span>
+                </div>
+                ${isMatch ? '<span class="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.5 rounded">C\'est toi !</span>' : ''}
+              </div>
+            `;
+          })
+          .join('');
+      }
+
+      cardsHtml += `
+        <div class="bg-white rounded-2xl border-2 ${
+          isRoomHighlighted ? 'border-amber-400 ring-4 ring-amber-100 shadow-md' : room.cardBorder
+        } p-4 shadow-xs flex flex-col justify-between transition-all hover:shadow-md">
+          <div>
+            <!-- En-tête salle -->
+            <div class="flex items-start justify-between gap-2 mb-2 pb-2.5 border-b border-slate-100">
+              <div class="flex items-center gap-2">
+                <span class="text-2xl">${room.emoji}</span>
+                <div>
+                  <h4 class="font-black text-sm text-slate-900 leading-tight">${room.name}</h4>
+                  <span class="inline-block mt-0.5 text-[10px] font-extrabold px-1.5 py-0.2 rounded ${room.badgeClass}">
+                    ${room.groupName}
+                  </span>
+                </div>
+              </div>
+              <span class="text-[11px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+                ${room.students.length}
+              </span>
+            </div>
+
+            <p class="text-[11px] text-slate-500 mb-3 leading-snug">${room.description}</p>
+
+            <!-- Liste des stagiaires affectés -->
+            <div class="space-y-1.5 mb-2">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
+                <span>Stagiaires en poste :</span>
+                <span>${room.students.length} au total</span>
+              </div>
+              ${studentsHtml}
+            </div>
+          </div>
+
+          <!-- Rôle & Soins -->
+          <div class="mt-3 pt-2.5 border-t border-slate-100 text-[10px] text-slate-400 leading-tight">
+            🩺 <strong class="text-slate-600">Missions :</strong> ${room.roleInfo}
+          </div>
+        </div>
+      `;
+    });
+
+    cardsGrid.innerHTML = cardsHtml;
+  }
+
+  // ============================================================================
+  // 2. TABLEAU D'EMPLOI DU TEMPS COMPLET (7 JOURS : LUN À DIM - RESPONSIVE)
   // ============================================================================
   function renderTimetable(schedule) {
     const headerRow = document.getElementById('timetable-header-row');
@@ -530,7 +740,7 @@
 
     // 1. Colonnes d'en-tête (Lundi à Dimanche)
     let headerHtml = `
-      <th class="p-3 sticky-col text-left min-w-[170px] bg-slate-100 border-b-2 border-slate-300">
+      <th class="p-2 sm:p-3 sticky-col text-left min-w-[120px] sm:min-w-[170px] bg-slate-100 border-b-2 border-slate-300 text-[11px] sm:text-xs">
         Étudiant Stagiaire
       </th>
     `;
@@ -539,7 +749,7 @@
       const isToday = day.isToday;
       const isWeekend = day.isWeekend;
       headerHtml += `
-        <th class="p-2.5 text-center min-w-[130px] border-b-2 ${
+        <th class="p-2 sm:p-2.5 text-center min-w-[95px] sm:min-w-[130px] border-b-2 ${
           isToday
             ? 'bg-blue-100/80 border-b-blue-600 text-blue-950 font-black'
             : isWeekend
@@ -547,14 +757,14 @@
             : 'border-b-slate-300 text-slate-700'
         }">
           <div class="flex items-center justify-center gap-1">
-            <span>${day.dayInfo.short}</span>
-            <span class="text-[10px] font-semibold text-slate-500">${day.dateFormatted}</span>
+            <span class="font-bold sm:font-black">${day.dayInfo.short}</span>
+            <span class="text-[9px] sm:text-[10px] font-semibold text-slate-500">${day.dateFormatted}</span>
           </div>
           ${
             isToday
-              ? '<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] bg-blue-600 text-white font-extrabold uppercase">Aujourd\'hui</span>'
+              ? '<span class="inline-block mt-0.5 px-1 sm:px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] bg-blue-600 text-white font-extrabold uppercase">Auj.</span>'
               : isWeekend
-              ? '<span class="inline-block mt-0.5 px-1.5 py-0.2 rounded text-[9px] bg-slate-200 text-slate-600 font-bold uppercase">Repos</span>'
+              ? '<span class="inline-block mt-0.5 px-1 sm:px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] bg-slate-200 text-slate-600 font-bold uppercase">Repos</span>'
               : ''
           }
         </th>
@@ -591,11 +801,11 @@
       if (isInactive) {
         rowsHtml += `
           <tr class="timetable-row ${isMatch ? 'highlighted' : ''} bg-slate-50/70 opacity-60">
-            <td class="p-2.5 sticky-col font-medium text-xs text-slate-500">
-              <div class="flex items-center gap-2">
+            <td class="p-2 sm:p-2.5 sticky-col font-medium text-xs text-slate-500">
+              <div class="flex items-center gap-1.5 truncate">
                 <span>⏸️</span>
-                <span class="line-through">${escapeHtml(student.nom)}</span>
-                <span class="text-[9px] bg-slate-200 text-slate-600 px-1 py-0.5 rounded font-bold">Absent</span>
+                <span class="line-through truncate">${escapeHtml(student.nom)}</span>
+                <span class="text-[8px] bg-slate-200 text-slate-600 px-1 py-0.2 rounded font-bold shrink-0">Absent</span>
               </div>
             </td>
             <td colspan="7" class="p-2.5 text-center text-xs text-slate-400 italic">
@@ -618,20 +828,20 @@
 
         if (isWeekend) {
           cellsHtml += `
-            <td class="p-2 text-center transition ${isToday ? 'col-today bg-blue-50/50' : 'bg-slate-50/40'}">
-              <span class="inline-flex items-center justify-center px-2.5 py-1 rounded-md text-[11px] font-black text-slate-500 bg-slate-100 border border-slate-300 shadow-2xs">
+            <td class="p-1 sm:p-2 text-center transition ${isToday ? 'col-today bg-blue-50/50' : 'bg-slate-50/40'}">
+              <span class="inline-flex items-center justify-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-black text-slate-500 bg-slate-100 border border-slate-300 shadow-2xs">
                 R.A.S
               </span>
             </td>
           `;
         } else {
           cellsHtml += `
-            <td class="p-2 text-center transition ${isToday ? 'col-today' : ''}">
-              <span class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-black border ${room.badgeClass} ${
+            <td class="p-1 sm:p-2 text-center transition ${isToday ? 'col-today' : ''}">
+              <span class="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2.5 py-1 sm:py-1.5 rounded-lg text-[10px] sm:text-xs font-black border ${room.badgeClass} ${
                 isToday ? 'ring-2 ring-blue-500 shadow-xs' : ''
               }">
-                <span>${room.emoji}</span>
-                <span>${room.shortName}</span>
+                <span class="text-xs sm:text-sm leading-none">${room.emoji}</span>
+                <span class="truncate">${room.shortName}</span>
               </span>
             </td>
           `;
@@ -641,17 +851,17 @@
       rowsHtml += `
         <tr class="timetable-row ${isMatch ? 'highlighted' : ''}">
           <!-- Nom de l'étudiant (Colonne fixe) -->
-          <td class="p-3 sticky-col font-semibold text-xs sm:text-sm text-slate-900">
-            <div class="flex items-center justify-between gap-1.5">
-              <div class="flex items-center gap-2 truncate">
-                <span class="w-7 h-7 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-xs shrink-0 border border-slate-200">
+          <td class="p-2 sm:p-3 sticky-col font-semibold text-xs sm:text-sm text-slate-900">
+            <div class="flex items-center justify-between gap-1">
+              <div class="flex items-center gap-1.5 sm:gap-2 truncate">
+                <span class="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-slate-100 text-slate-700 font-bold flex items-center justify-center text-[10px] sm:text-xs shrink-0 border border-slate-200">
                   ${getInitials(student.nom)}
                 </span>
-                <span class="truncate ${isMatch ? 'text-amber-950 font-black' : ''}">
+                <span class="truncate text-[11px] sm:text-xs md:text-sm ${isMatch ? 'text-amber-950 font-black' : ''}">
                   ${escapeHtml(student.nom)}
                 </span>
               </div>
-              <span class="text-[9px] font-bold px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 shrink-0">
+              <span class="text-[8px] sm:text-[9px] font-bold px-1 sm:px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 shrink-0 hidden sm:inline-block">
                 ${groupName}
               </span>
             </div>
@@ -925,6 +1135,25 @@
       state.weekOffset = 0;
       initCurrentDayIndex();
       render();
+    });
+
+    // Bascule de vue : Cartes (Mobile) vs Tableau (Semaine)
+    document.getElementById('btn-view-cards')?.addEventListener('click', () => {
+      state.activeView = 'cards';
+      localStorage.setItem('urgences_active_view', 'cards');
+      renderViewSwitcher();
+    });
+
+    document.getElementById('btn-view-timetable')?.addEventListener('click', () => {
+      state.activeView = 'table';
+      localStorage.setItem('urgences_active_view', 'table');
+      renderViewSwitcher();
+      setTimeout(() => {
+        const todayCol = document.querySelector('.col-today');
+        if (todayCol && window.innerWidth < 768) {
+          todayCol.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
+      }, 100);
     });
 
     // Recherche
