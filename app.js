@@ -715,13 +715,13 @@
         <span class="inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
         <span class="text-emerald-700">En direct</span>
       `;
-      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 transition';
+      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 select-none';
     } else {
       pill.innerHTML = `
-        <span class="inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
-        <span class="text-amber-700">Mode Démo</span>
+        <span class="inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
+        <span class="text-slate-600">Hors ligne</span>
       `;
-      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 border border-amber-200 hover:bg-amber-100 transition';
+      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 border border-slate-200 select-none';
     }
   }
 
@@ -1988,9 +1988,7 @@
     document.getElementById('btn-copy-wa-today')?.addEventListener('click', copyWhatsAppToday);
     document.getElementById('btn-copy-wa-week')?.addEventListener('click', copyWhatsAppWeek);
 
-    // Config & Admin
-    document.getElementById('status-pill')?.addEventListener('click', openConfigModal);
-    document.getElementById('btn-open-config')?.addEventListener('click', openConfigModal);
+    // Admin (Cadenas PIN)
 
     document.getElementById('btn-open-admin')?.addEventListener('click', () => {
       if (state.isAdminAuthenticated) {
@@ -2070,29 +2068,7 @@
       closeModal('admin-modal');
     });
 
-    document.getElementById('supabase-config-form')?.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const u = document.getElementById('cfg-supabase-url')?.value.trim() || '';
-      const k = document.getElementById('cfg-supabase-key')?.value.trim() || '';
-      state.supabaseUrl = u;
-      state.supabaseKey = k;
-      localStorage.setItem('urgences_supabase_url', u);
-      localStorage.setItem('urgences_supabase_key', k);
-      closeModal('config-modal');
-      await initDatabase();
-      render();
-    });
 
-    document.getElementById('btn-switch-demo')?.addEventListener('click', () => {
-      localStorage.removeItem('urgences_supabase_url');
-      localStorage.removeItem('urgences_supabase_key');
-      state.supabaseUrl = '';
-      state.supabaseKey = '';
-      activateDemoMode();
-      closeModal('config-modal');
-      render();
-      showToast('Basculé en mode démo', 'info');
-    });
 
     document.querySelectorAll('[data-close-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -2117,14 +2093,5 @@
     if (input) input.value = '';
     if (err) err.classList.add('hidden');
     openModal('pin-modal');
-    setTimeout(() => input?.focus(), 100);
-  }
-
-  function openConfigModal() {
-    const u = document.getElementById('cfg-supabase-url');
-    const k = document.getElementById('cfg-supabase-key');
-    if (u) u.value = state.supabaseUrl || '';
-    if (k) k.value = state.supabaseKey || '';
-    openModal('config-modal');
   }
 })();
