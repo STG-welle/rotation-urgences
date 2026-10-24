@@ -181,9 +181,16 @@
 
   function applyLocalCustomGroups() {
     const map = getLocalCustomGroups();
-    state.stagiaires.forEach((s) => {
+    state.stagiaires.forEach(async (s) => {
       if (!s.groupe && map[s.id]) {
         s.groupe = map[s.id];
+        if (state.client && state.isSupabaseConnected) {
+          try {
+            await state.client.from('stagiaires').update({ groupe: s.groupe }).eq('id', s.id);
+          } catch (e) {
+            console.warn('Sync group error:', e);
+          }
+        }
       }
     });
   }
@@ -1157,12 +1164,8 @@
 
     if (state.client && state.isSupabaseConnected) {
       try {
-        let res = await state.client.from('stagiaires').update({ groupe: validGroup }).eq('id', id);
-        if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('groupe'))) {
-          const tagNom = validGroup ? `${cleanName} [${validGroup}]` : cleanName;
-          res = await state.client.from('stagiaires').update({ nom: tagNom }).eq('id', id);
-        }
-        if (res.error) throw res.error;
+        const { error } = await state.client.from('stagiaires').update({ groupe: validGroup }).eq('id', id);
+        if (error) throw error;
         render();
         showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (${roomNames[validGroup]} le Lundi)` : `${s.nom} en Groupe Auto`, 'success');
       } catch (err) {
@@ -1222,10 +1225,6 @@
         if (validGroup) payload.groupe = validGroup;
 
         let res = await state.client.from('stagiaires').insert([payload]).select().single();
-        if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('groupe'))) {
-          const tagNom = validGroup ? `${trimmed} [${validGroup}]` : trimmed;
-          res = await state.client.from('stagiaires').insert([{ nom: tagNom, actif: true }]).select().single();
-        }
         if (res.error) throw res.error;
         const data = res.data;
         if (data) {
