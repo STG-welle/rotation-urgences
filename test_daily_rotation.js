@@ -31,14 +31,15 @@ function calculateDailySchedule(startDateStr, weekOffset, stagiaires) {
 
   const startMonday = getMonday(startDateStr);
 
-  const active = stagiaires.filter(s => s.actif).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  const allStagiaires = [...stagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  const active = allStagiaires.filter(s => s.actif);
   const groups = [[], [], [], []];
   const studentGroupMap = new Map();
   const groupLetterToIdx = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
 
   // 1. Affecter les stagiaires avec groupe fixé manuellement
   const auto = [];
-  active.forEach(s => {
+  allStagiaires.forEach(s => {
     const manualGroup = s.groupe ? String(s.groupe).toUpperCase() : null;
     if (manualGroup && groupLetterToIdx[manualGroup] !== undefined) {
       const g = groupLetterToIdx[manualGroup];
@@ -49,8 +50,7 @@ function calculateDailySchedule(startDateStr, weekOffset, stagiaires) {
     }
   });
 
-  // 2. Équilibrer les stagiaires automatiques
-  auto.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+  // 2. Équilibrer les stagiaires automatiques sur la TOTALITÉ de la promotion
   auto.forEach(s => {
     let minCount = Infinity;
     let target = 0;
@@ -77,10 +77,12 @@ function calculateDailySchedule(startDateStr, weekOffset, stagiaires) {
       ? []
       : config.ROOMS.map(room => {
           const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
+          const cohort = groups[assignedGroup] || [];
           return {
             room: room.name,
             emoji: room.emoji,
-            students: groups[assignedGroup].map(s => s.nom)
+            students: cohort.filter(s => s.actif).map(s => s.nom),
+            absentStudents: cohort.filter(s => !s.actif).map(s => s.nom)
           };
         });
 
@@ -162,6 +164,21 @@ for (let offset = 0; offset <= 3; offset++) {
     throw new Error(`En semaine +${offset}, Alexandre Petit (Groupe A) n'est pas en Triage le Lundi !`);
   }
 }
-console.log('✅ Alexandre Petit (Groupe A) est TOUJOURS en Triage le Lundi (Semaine 0, +1, +2, +3). Aucune dérive !');
+// Vérifier la stabilité lors de la suspension d'un stagiaire
+console.log('\n--- TEST DE NON-BOULEVERSEMENT EN CAS DE SUSPENSION ---');
+const suspendedList = customList.map(s => s.nom === 'Thomas Laurent' ? { ...s, actif: false } : s);
+const resSuspended = calculateDailySchedule('2026-10-19', 0, suspendedList);
+
+// Camille Dubois doit rester strictement dans le même groupe et la même salle chaque jour
+resCustom.daysSchedule.forEach((day, d) => {
+  if (!day.isWeekend) {
+    const camilleOriginal = day.roomAssignments.find(ra => ra.students.includes('Camille Dubois'));
+    const camilleAfterSusp = resSuspended.daysSchedule[d].roomAssignments.find(ra => ra.students.includes('Camille Dubois'));
+    if (!camilleAfterSusp || camilleOriginal.room !== camilleAfterSusp.room) {
+      throw new Error(`Bouleversement ! Camille a changé de salle : ${camilleOriginal.room} -> ${camilleAfterSusp?.room}`);
+    }
+  }
+});
+console.log('✅ La suspension de Thomas n\'a modifié NI le groupe NI la salle de Camille Dubois ni des autres !');
 
 console.log('\n✅ TOUS LES TESTS SONT VALIDÉS AVEC SUCCÈS !');

@@ -306,19 +306,20 @@
     const msInADay = 24 * 60 * 60 * 1000;
     const weekNumber = Math.floor((targetMonday.getTime() - startMonday.getTime()) / (7 * msInADay));
 
-    // Stagiaires actifs triés
-    const activeStagiaires = state.stagiaires
-      .filter((s) => s.actif === true)
-      .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    // Tous les stagiaires enregistrés (la répartition des groupes est calculée
+    // sur l'ensemble de la promotion afin que la suspension/absence d'une personne
+    // ne vienne JAMAIS modifier le groupe ou la salle des autres stagiaires)
+    const allStagiaires = [...state.stagiaires].sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    const activeStagiaires = allStagiaires.filter((s) => s.actif === true);
 
-    // 4 Groupes équilibrés (A, B, C, D)
+    // 4 Groupes stables (A, B, C, D)
     const groups = [[], [], [], []];
     const studentGroupMap = new Map();
     const groupLetterToIdx = { 'A': 0, 'B': 1, 'C': 2, 'D': 3 };
 
     // 1. D'abord affecter les stagiaires ayant un groupe choisi manuellement par l'admin
     const autoStagiaires = [];
-    activeStagiaires.forEach((s) => {
+    allStagiaires.forEach((s) => {
       const manualGroup = s.groupe ? String(s.groupe).toUpperCase() : null;
       if (manualGroup && groupLetterToIdx[manualGroup] !== undefined) {
         const gIdx = groupLetterToIdx[manualGroup];
@@ -329,9 +330,8 @@
       }
     });
 
-    // 2. Répartir les stagiaires automatiques pour équilibrer parfaitement les 4 groupes
-    // afin que le programme hospitalier ne soit jamais bouleversé
-    autoStagiaires.sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
+    // 2. Répartir les stagiaires automatiques de façon stable sur la TOTALITÉ des stagiaires
+    // afin que le programme hospitalier ne soit JAMAIS bouleversé en cas d'absence
     autoStagiaires.forEach((s) => {
       let minCount = Infinity;
       let targetGIdx = 0;
@@ -367,11 +367,16 @@
         ? []
         : window.APP_CONFIG.ROOMS.map((room) => {
             const assignedGroup = ((room.id - cycle) % 4 + 4) % 4;
+            const cohortStudents = groups[assignedGroup] || [];
+            const activeInRoom = cohortStudents.filter((s) => s.actif === true);
+            const absentInRoom = cohortStudents.filter((s) => s.actif === false);
             return {
               ...room,
               assignedGroup,
               groupName: GROUP_NAMES[assignedGroup],
-              students: groups[assignedGroup] || []
+              students: activeInRoom,
+              absentStudents: absentInRoom,
+              cohortStudents
             };
           });
 
@@ -779,7 +784,7 @@
       if (room.students.length === 0) {
         studentsHtml = `
           <div class="p-3 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-            Aucun stagiaire affecté
+            ${room.absentStudents && room.absentStudents.length > 0 ? 'Stagiaires absent(s) aujourd\'hui' : 'Aucun stagiaire en poste'}
           </div>
         `;
       } else {
@@ -807,6 +812,16 @@
           .join('');
       }
 
+      let absentHtml = '';
+      if (room.absentStudents && room.absentStudents.length > 0) {
+        absentHtml = `
+          <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+            <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
+            <span class="truncate">Absent(e) : <span class="line-through text-slate-500">${room.absentStudents.map(s => escapeHtml(s.nom)).join(', ')}</span></span>
+          </div>
+        `;
+      }
+
       cardsHtml += `
         <div class="bg-white rounded-2xl border-2 ${
           isRoomHighlighted ? 'border-amber-400 ring-4 ring-amber-100 shadow-md' : room.cardBorder
@@ -823,7 +838,7 @@
                   </span>
                 </div>
               </div>
-              <span class="text-[11px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0">
+              <span class="text-[11px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0" title="${room.students.length} actif(s)">
                 ${room.students.length}
               </span>
             </div>
@@ -834,9 +849,10 @@
             <div class="space-y-1.5 mb-2">
               <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
                 <span>Stagiaires en poste :</span>
-                <span>${room.students.length} au total</span>
+                <span>${room.students.length} actif${room.students.length > 1 ? 's' : ''}</span>
               </div>
               ${studentsHtml}
+              ${absentHtml}
             </div>
           </div>
 
@@ -1174,24 +1190,35 @@
   }
 
   async function toggleStagiaire(id, newStatus) {
+    const s = state.stagiaires.find((i) => i.id === id);
+    const sName = s ? s.nom : 'Stagiaire';
+
     if (state.client && state.isSupabaseConnected) {
       try {
         const { error } = await state.client.from('stagiaires').update({ actif: newStatus }).eq('id', id);
         if (error) throw error;
-        const s = state.stagiaires.find((i) => i.id === id);
         if (s) s.actif = newStatus;
         render();
-        showToast(`Statut mis à jour (${newStatus ? 'Présent' : 'Absent'})`, 'success');
+        showToast(
+          newStatus
+            ? `${sName} réintégré(e) (Présent)`
+            : `${sName} suspendu(e) (Le planning des autres stagiaires reste inchangé)`,
+          'success'
+        );
       } catch (err) {
         showToast('Erreur Supabase update', 'error');
       }
     } else {
-      const s = state.stagiaires.find((i) => i.id === id);
       if (s) {
         s.actif = newStatus;
         saveDemoStagiaires();
         render();
-        showToast(`Statut mis à jour (Démo)`, 'success');
+        showToast(
+          newStatus
+            ? `${sName} réintégré(e) (Démo)`
+            : `${sName} suspendu(e) (Démo - Planning protégé)`,
+          'success'
+        );
       }
     }
   }
