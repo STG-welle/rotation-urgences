@@ -39,7 +39,7 @@ serve(async (req: Request) => {
   const alertWebhookUrl = Deno.env.get("ALERT_WEBHOOK_URL") || "";
   const telegramBotToken = Deno.env.get("TELEGRAM_BOT_TOKEN") || "";
   const telegramChatId = Deno.env.get("TELEGRAM_CHAT_ID") || "";
-  const ntfyTopic = Deno.env.get("NTFY_TOPIC") || "medirappel-urgences-chryst";
+  const ntfyTopic = Deno.env.get("NTFY_TOPIC") || "rotation-urgences-chryst";
 
   const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -80,7 +80,7 @@ serve(async (req: Request) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reconnexion WhatsApp • MediRappel</title>
+  <title>Reconnexion WhatsApp • Rotation Urgences CHUL</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <meta http-equiv="refresh" content="20">
 </head>
@@ -107,7 +107,7 @@ serve(async (req: Request) => {
 
       ${isAlreadyLogged ? `
         <div class="py-4 text-emerald-300 text-sm font-semibold">
-          Tout fonctionne normalement. Les envois de rappels et de plannings sont actifs.
+          Tout fonctionne normalement. Les envois de plannings sont actifs.
         </div>
       ` : ''}
     </div>
@@ -367,7 +367,7 @@ async function triggerAdminAlert(opts: {
       <div style="text-align: center; margin-bottom: 20px;">
         <span style="font-size: 40px;">🚨</span>
         <h2 style="color: #dc2626; margin: 8px 0 4px 0;">Alerte Déconnexion WhatsApp (Green API)</h2>
-        <p style="color: #64748b; font-size: 13px; margin: 0;">Système de Monitoring MediRappel / Urgences</p>
+        <p style="color: #64748b; font-size: 13px; margin: 0;">Système de Surveillance • Rotation Urgences CHUL</p>
       </div>
 
       <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 16px; margin-bottom: 20px;">
@@ -410,7 +410,7 @@ async function triggerAdminAlert(opts: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          sender: { name: "MediRappel Alertes", email: "alertes@medirappel.com" },
+          sender: { name: "Rotation Urgences Alertes", email: "alertes@rotation-urgences.com" },
           to: [{ email: opts.adminEmail }],
           subject: `🚨 URGENT : Déconnexion WhatsApp (${opts.stateInstance}) - QR Code à rescanner`,
           htmlContent: emailHtml
@@ -429,7 +429,7 @@ async function triggerAdminAlert(opts: {
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          from: "MediRappel Alertes <onboarding@resend.dev>",
+          from: "Rotation Urgences Alertes <onboarding@resend.dev>",
           to: [opts.adminEmail],
           subject: `🚨 URGENT : Déconnexion WhatsApp (${opts.stateInstance}) - QR Code à rescanner`,
           html: emailHtml
