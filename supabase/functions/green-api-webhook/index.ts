@@ -267,17 +267,18 @@ serve(async (req: Request) => {
 
         console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${chatId}) : "${textMessage}"`);
 
-        // Protection anti-boucle : Ignorer si c'est le bot lui-même qui a envoyé le message
-        const isBotMessage = textMessage.includes("voici le planning officiel") || textMessage.includes("rotation-urgences");
+        // Protection anti-boucle : Ignorer les images et les messages du bot
+        if (payload.messageData?.typeMessage === "imageMessage") {
+          return new Response(JSON.stringify({ success: true, ignored: "imageMessage" }), { headers: CORS_HEADERS });
+        }
+        const isBotMessage = textMessage.includes("rappel : voici à nouveau") || textMessage.includes("bonsoir à tous");
 
         // Détection du mot "planning"
         if (chatId && !isBotMessage && /\bplanning\b/i.test(textMessage)) {
-          console.log(`🤖 [BOT INTERACTIF] Mot-clé "planning" détecté ! Envoi de l'image au chat ${chatId}...`);
+          console.log(`🤖 [BOT INTERACTIF] Mot-clé "planning" détecté ! Envoi de l'image de rappel au chat ${chatId}...`);
 
           const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
-          const captionText = `📅 *Voici le planning officiel de rotation des salles (Urgences Pédiatriques)*\n\n` +
-            `👉 Consultez également le roulement en direct sur votre smartphone :\n` +
-            `https://stg-welle.github.io/rotation-urgences/`;
+          const captionText = `📋 *Rappel : Voici à nouveau le planning de rotation de la semaine.*`;
 
           try {
             const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
