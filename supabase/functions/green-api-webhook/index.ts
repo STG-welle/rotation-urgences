@@ -107,6 +107,26 @@ serve(async (req: Request) => {
       }
     }
 
+    // C. Endpoint GET pour activer le Bot Répondeur sur Green API (incomingWebhook: yes)
+    if (action === "enable_bot") {
+      try {
+        const setResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/setSettings/${greenApiToken}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ incomingWebhook: "yes" })
+        });
+        const setData = await setResp.json();
+        return new Response(JSON.stringify({ success: true, message: "Bot activé sur Green API !", result: setData }, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // C. Endpoint GET statut JSON et synchronisation DB
     try {
       const stateResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/getStateInstance/${greenApiToken}`);
@@ -223,6 +243,67 @@ serve(async (req: Request) => {
             stateInstance,
             alertTriggered: isCritical
           }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+
+      // 2. Traitement des messages entrants : Bot Répondeur Interactif (mot-clé "planning")
+      if (typeWebhook === "incomingMessageReceived") {
+        const messageData = payload.messageData || {};
+        const textMessage = (
+          messageData.textMessageData?.textMessage ||
+          messageData.extendedTextMessageData?.text ||
+          ""
+        ).trim().toLowerCase();
+
+        const chatId = payload.senderData?.chatId;
+        const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Bonjour";
+        const quotedMessageId = payload.idMessage;
+
+        console.log(`📩 Message WhatsApp reçu de ${senderName} (${chatId}) : "${textMessage}"`);
+
+        // Détection du mot "planning"
+        if (chatId && /\bplanning\b/i.test(textMessage)) {
+          console.log(`🤖 [BOT INTERACTIF] Mot-clé "planning" détecté ! Envoi de l'image au chat ${chatId}...`);
+
+          const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
+          const captionText = `📅 *Voici le planning officiel de rotation des salles (Urgences Pédiatriques)*\n\n` +
+            `👉 Consultez également le roulement en direct sur votre smartphone :\n` +
+            `https://stg-welle.github.io/rotation-urgences/`;
+
+          try {
+            const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
+            const sendResp = await fetch(sendFileUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chatId,
+                urlFile: publicImageUrl,
+                fileName: "planning-semaine.png",
+                caption: captionText,
+                quotedMessageId
+              })
+            });
+
+            const sendResult = await sendResp.json().catch(() => ({}));
+            console.log("✅ Résultat envoi sendFileByUrl :", JSON.stringify(sendResult));
+
+            return new Response(
+              JSON.stringify({
+                success: true,
+                botReplied: true,
+                chatId,
+                idMessage: sendResult.idMessage
+              }),
+              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          } catch (sendErr) {
+            console.error("❌ Erreur expédition image via sendFileByUrl :", sendErr);
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, processed: true }),
           { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
