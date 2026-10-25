@@ -10,8 +10,14 @@ Au lieu d'envoyer de longs messages texte encombrants, le système génère **un
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│             GitHub Actions (Cron Hebdomadaire)              │
-│       Tous les dimanches à 19h00 (ou déclenchement 1-clic)   │
+│             Supabase pg_cron (Horloge Précise)              │
+│       Tous les dimanches à 19h00:00 (18h00 UTC pile)        │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Appel API (workflow_dispatch)
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  GitHub Actions (Exécution)                 │
+│      Lancement instantané (< 5s, pas de file d'attente)     │
 └──────────────────────────────┬──────────────────────────────┘
                                │
                                ▼
@@ -38,20 +44,16 @@ Au lieu d'envoyer de longs messages texte encombrants, le système génère **un
 
 ---
 
-## 🧹 1. Nettoyage de l'ancien système (Désactivation des longs messages texte)
+## ⏰ 1. Configuration du Déclencheur Ponctuel (19h00 Pile)
 
-L'ancien système utilisait l'extension `pg_cron` de Supabase pour déclencher chaque nuit l'Edge Function `daily-whatsapp-schedule` qui envoyait des pavés de texte via Groq AI.
+Pour garantir que le bot se déclenche à **19h00:00 précises chaque dimanche** sans subir la file d'attente de GitHub :
 
-### Action unique pour désactiver l'ancien envoi automatique :
-1. Rendez-vous dans le **SQL Editor** de votre projet Supabase :
+1. Rendez-vous dans le **SQL Editor** de votre projet Supabase :  
    👉 [https://supabase.com/dashboard/project/ezpbmutbkuoudmyyozlr/sql](https://supabase.com/dashboard/project/ezpbmutbkuoudmyyozlr/sql)
-2. Exécutez simplement cette commande SQL :
-   ```sql
-   SELECT cron.unschedule('envoi-planning-quotidien-whatsapp');
-   ```
-3. **Résultat :** L'ancien déclencheur quotidien est immédiatement supprimé. Votre base Supabase ne consommera plus de requêtes inutiles la nuit et aucun long message texte ne sera envoyé.
+2. Ouvrez le fichier [`cron_setup.sql`](file:///c:/Users/ndong/Documents/ROTATION/cron_setup.sql), copiez son contenu et collez-le dans le SQL Editor.
+3. Cliquez sur **« Run »**.
 
-> **Note :** Vos identifiants Green API et Supabase restent inchangés et sont directement réutilisés par le nouveau bot.
+**Résultat :** Supabase appellera GitHub chaque dimanche soir à 18h00 UTC (19h00 heure de Libreville) par API directe. L'envoi WhatsApp sera ainsi toujours parfaitement ponctuel.
 
 ---
 
