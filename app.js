@@ -678,9 +678,31 @@
     if (!screenshotZone) return;
     screenshotZone.classList.remove('hidden');
 
-    // Calculer le planning de la semaine pour Équipe 1 et Équipe 2
-    const s1 = calculateDailySchedule(state.weekOffset, '1');
-    const s2 = calculateDailySchedule(state.weekOffset, '2');
+    // Détermination de la semaine cible pour la capture
+    const urlParams = new URLSearchParams(window.location.search);
+    let targetOffset = state.weekOffset;
+
+    if (urlParams.get('week') === 'next') {
+      targetOffset = 1;
+    } else if (urlParams.get('week') === 'current') {
+      targetOffset = 0;
+    } else if (urlParams.has('week')) {
+      const parsed = parseInt(urlParams.get('week'), 10);
+      if (!isNaN(parsed)) targetOffset = parsed;
+    } else {
+      // DÉTECTION INTELLIGENTE DU DIMANCHE (Robot & Envoi WhatsApp) :
+      // Le dimanche soir, la semaine de travail est terminée depuis vendredi.
+      // Tout planning hebdomadaire diffusé le dimanche prépare obligatoirement la semaine qui démarre demain lundi (+1 semaine) !
+      const now = new Date();
+      if (state.simulatedDayOffset) now.setDate(now.getDate() + state.simulatedDayOffset);
+      if (now.getDay() === 0) {
+        targetOffset = 1;
+      }
+    }
+
+    // Calculer le planning de la semaine cible pour Équipe 1 et Équipe 2
+    const s1 = calculateDailySchedule(targetOffset, '1');
+    const s2 = calculateDailySchedule(targetOffset, '2');
 
     const shift1 = s1.currentTeamShift;
     const shift2 = s2.currentTeamShift;
@@ -1008,16 +1030,25 @@
       const dayToUse = todayIndex !== -1 ? todayIndex : 0;
       const tomorrowIndex = (dayToUse + 1) % 7;
 
+      let tomorrowSchedule = studentSchedule;
+      if (dayToUse === 6) {
+        // Le dimanche (index 6), demain est le lundi de la semaine SUIVANTE (+1 semaine)
+        const nextMonday = new Date(studentSchedule.targetMonday.getTime() + 7 * 24 * 3600 * 1000);
+        const nextWeekShifts = getWeekShifts(nextMonday);
+        const nextEquipe = getEffectiveStudentTeam(found, nextWeekShifts.isEvenWeek);
+        tomorrowSchedule = calculateDailySchedule(state.weekOffset + 1, nextEquipe);
+      }
+
       const todayRoom = studentSchedule.getStudentRoomOnDay(found.id, dayToUse);
-      const tomorrowRoom = studentSchedule.getStudentRoomOnDay(found.id, tomorrowIndex);
+      const tomorrowRoom = tomorrowSchedule.getStudentRoomOnDay(found.id, tomorrowIndex);
       const dayNameToday = studentSchedule.daysData[dayToUse].dayInfo.label;
-      const dayNameTomorrow = studentSchedule.daysData[tomorrowIndex].dayInfo.label;
+      const dayNameTomorrow = tomorrowSchedule.daysData[tomorrowIndex].dayInfo.label;
 
       const isTodayWeekend = studentSchedule.daysData[dayToUse].isWeekend;
-      const isTomorrowWeekend = studentSchedule.daysData[tomorrowIndex].isWeekend;
+      const isTomorrowWeekend = tomorrowSchedule.daysData[tomorrowIndex].isWeekend;
 
       const todayPartners = studentSchedule.getStudentPartnersOnDay(found.id, dayToUse);
-      const tomorrowPartners = studentSchedule.getStudentPartnersOnDay(found.id, tomorrowIndex);
+      const tomorrowPartners = tomorrowSchedule.getStudentPartnersOnDay(found.id, tomorrowIndex);
 
       let todayText = '';
       if (isTodayWeekend) {
