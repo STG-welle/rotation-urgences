@@ -696,15 +696,14 @@
 
     if (btn1 && btn2) {
       if (state.selectedEquipe === '1') {
-        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
-        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-blue-700 text-white shadow-2xs cursor-pointer';
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
       } else {
-        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all bg-blue-600 text-white shadow-xs';
-        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all text-slate-700 hover:text-slate-900';
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-blue-700 text-white shadow-2xs cursor-pointer';
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
       }
     }
   }
-
 
   function renderHeaderStatus() {
     const pill = document.getElementById('status-pill');
@@ -712,16 +711,16 @@
 
     if (state.isSupabaseConnected) {
       pill.innerHTML = `
-        <span class="inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-        <span class="text-emerald-700">En direct</span>
+        <span class="inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+        <span class="text-emerald-800">Système connecté</span>
       `;
-      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 border border-emerald-200 select-none';
+      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 border border-emerald-300 select-none';
     } else {
       pill.innerHTML = `
         <span class="inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
-        <span class="text-slate-600">Hors ligne</span>
+        <span class="text-slate-600">Mode local</span>
       `;
-      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 border border-slate-200 select-none';
+      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 border border-slate-300 select-none';
     }
   }
 
@@ -738,8 +737,8 @@
 
     if (badge) {
       if (state.simulatedDayOffset !== 0) {
-        badge.innerHTML = `<span class="inline-flex items-center gap-1"><svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Mode Test : +${state.simulatedDayOffset}j</span> <span class="underline ml-1 font-black">(Revenir au réel)</span>`;
-        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-500 text-white shadow-xs cursor-pointer';
+        badge.innerHTML = `<span class="inline-flex items-center gap-1"><svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Simulation : +${state.simulatedDayOffset}j</span> <span class="underline ml-1 font-bold">(Retour réel)</span>`;
+        badge.className = 'px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold bg-amber-600 text-white shadow-2xs cursor-pointer';
         badge.onclick = () => {
           state.simulatedDayOffset = 0;
           initCurrentDayIndex();
@@ -749,25 +748,25 @@
       } else if (schedule.isCurrentWeek) {
         badge.onclick = null;
         badge.textContent = `Semaine en cours (S${schedule.weekNumber})`;
-        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-blue-100 text-blue-800 border border-blue-200';
+        badge.className = 'px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold bg-blue-100 text-blue-900 border border-blue-200';
       } else if (state.weekOffset > 0) {
         badge.onclick = null;
         badge.textContent = `Dans +${state.weekOffset} sem. (S${schedule.weekNumber})`;
-        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200';
+        badge.className = 'px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold bg-slate-200 text-slate-800 border border-slate-300';
       } else {
         badge.onclick = null;
         badge.textContent = `Il y a ${Math.abs(state.weekOffset)} sem. (S${schedule.weekNumber})`;
-        badge.className = 'px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-slate-100 text-slate-700 border border-slate-200';
+        badge.className = 'px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200';
       }
     }
 
     if (todayBtn) {
       if (schedule.isCurrentWeek) {
         todayBtn.classList.add('bg-slate-100', 'text-slate-400');
-        todayBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+        todayBtn.classList.remove('bg-white', 'text-slate-900', 'shadow-2xs');
       } else {
         todayBtn.classList.remove('bg-slate-100', 'text-slate-400');
-        todayBtn.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+        todayBtn.classList.add('bg-white', 'text-slate-900', 'shadow-2xs');
       }
     }
 
@@ -775,7 +774,7 @@
     if (countSpan) countSpan.textContent = schedule.activeCount;
   }
 
-  // Bandeau informatif personnalisé si recherche active
+  // Bandeau informatif personnalisé si recherche active (Format Fiche d'Affectation Clinique)
   function renderSearchBanner(schedule) {
     const banner = document.getElementById('my-assignment-banner');
     const clearBtn = document.getElementById('btn-clear-search');
@@ -790,16 +789,16 @@
       const found = state.stagiaires.find((s) => s.nom.toLowerCase().includes(query));
       if (!found) {
         banner.classList.remove('hidden');
-        banner.innerHTML = `<span class="italic text-slate-500">Aucun stagiaire trouvé pour "${escapeHtml(state.searchQuery)}".</span>`;
+        banner.innerHTML = `<span class="italic text-slate-500 font-medium">Aucun stagiaire répertorié au tableau de service pour "${escapeHtml(state.searchQuery)}".</span>`;
         return;
       }
 
       if (!found.actif) {
         banner.classList.remove('hidden');
         banner.innerHTML = `
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded-md text-[10px] font-black bg-slate-200 text-slate-700 uppercase tracking-wider">Absent</span>
-            <span><strong>${escapeHtml(found.nom)}</strong> est actuellement noté(e) <strong>absent(e)</strong>.</span>
+          <div class="flex items-center gap-2.5">
+            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-200 text-slate-700 uppercase tracking-wider border border-slate-300">Statut : Absent</span>
+            <span class="text-slate-700"><strong>${escapeHtml(found.nom)}</strong> est actuellement noté(e) <strong>absent(e) / suspendu(e)</strong> de la rotation clinique.</span>
           </div>
         `;
         return;
@@ -826,38 +825,41 @@
 
       let todayText = '';
       if (isTodayWeekend) {
-        todayText = `<span class="font-extrabold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700 border border-slate-300">⚪ R.A.S (Week-end / Repos)</span>`;
+        todayText = `<span class="font-bold px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 border border-slate-300">⚪ R.A.S (Week-end)</span>`;
       } else if (todayRoom) {
-        const partnerStr = todayPartners.length > 0 ? ` avec <span class="underline font-bold">${todayPartners.map(p => escapeHtml(p.nom)).join(', ')}</span>` : '';
-        todayText = `au <span class="font-black px-2 py-0.5 rounded-md ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>${partnerStr}`;
+        const partnerStr = todayPartners.length > 0 ? ` • en binôme avec <strong class="text-slate-900">${todayPartners.map(p => escapeHtml(p.nom)).join(', ')}</strong>` : '';
+        todayText = `au secteur <span class="font-bold px-2 py-0.5 rounded text-xs ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>${partnerStr}`;
       } else {
-        todayText = `en rotation`;
+        todayText = `en roulement de service`;
       }
 
       let tomorrowText = '';
       if (isTomorrowWeekend) {
-        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-600">⚪ R.A.S (Week-end)</span>`;
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-600">⚪ R.A.S</span>`;
       } else if (tomorrowRoom) {
         const partnerStr = tomorrowPartners.length > 0 ? ` (avec ${tomorrowPartners.map(p => escapeHtml(p.nom)).join(', ')})` : '';
-        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span><span class="text-slate-600 font-semibold">${partnerStr}</span>`;
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span><span class="text-slate-600 font-medium">${partnerStr}</span>`;
       } else {
-        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-black text-slate-700">En rotation</span>`;
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-700">En roulement</span>`;
       }
 
       banner.classList.remove('hidden');
       banner.innerHTML = `
-        <div class="flex items-center gap-2.5">
-          <div class="w-8 h-8 rounded-xl ${isTodayWeekend ? 'bg-slate-200 text-slate-600' : 'bg-blue-600 text-white'} flex items-center justify-center shrink-0">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-            </svg>
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-9 h-9 rounded-lg ${isTodayWeekend ? 'bg-slate-200 text-slate-700' : 'bg-blue-700 text-white'} font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs border border-blue-800">
+            ${getInitials(found.nom)}
           </div>
-            <span class="font-black text-xs sm:text-sm text-slate-900">${escapeHtml(found.nom)} <span class="text-[10px] text-blue-700 font-extrabold bg-blue-100 px-1.5 py-0.2 rounded-md">Équipe ${studentEquipe} • ${studentSchedule.currentTeamShift?.badgeLabel || ''}${found.disponibilite && found.disponibilite !== 'tous' ? ' (Auto)' : ''}</span></span> :
-            ${studentSchedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `}
-            ${todayText}.
+          <div class="min-w-0">
+            <div class="flex items-center gap-1.5 flex-wrap">
+              <span class="font-bold text-sm text-slate-900">${escapeHtml(found.nom)}</span>
+              <span class="text-[10px] text-blue-900 font-bold bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded">Équipe ${studentEquipe} • ${studentSchedule.currentTeamShift?.badgeLabel || ''}${found.disponibilite && found.disponibilite !== 'tous' ? ' (Auto)' : ''}</span>
+            </div>
+            <div class="text-xs text-slate-700 mt-0.5">
+              ${studentSchedule.isCurrentWeek ? `Aujourd'hui (${dayNameToday}) ` : `${dayNameToday} `} : ${todayText}
+            </div>
           </div>
         </div>
-        <div class="text-[11px] font-bold text-slate-700 bg-white border border-slate-200 px-2.5 py-1 rounded-lg w-full sm:w-auto text-center sm:text-left shadow-2xs">
+        <div class="text-xs font-semibold text-slate-700 bg-white border border-slate-300 px-3 py-1.5 rounded-md w-full sm:w-auto text-center sm:text-left shadow-2xs shrink-0">
           ${tomorrowText}
         </div>
       `;
@@ -884,19 +886,19 @@
       viewCards.classList.remove('hidden');
       viewTimetable.classList.add('hidden');
 
-      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all bg-white text-blue-900 shadow-xs';
-      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all text-slate-600 hover:text-slate-900';
+      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs border border-slate-200 cursor-pointer';
+      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
     } else {
       viewCards.classList.add('hidden');
       viewTimetable.classList.remove('hidden');
 
-      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all text-slate-600 hover:text-slate-900';
-      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-black transition-all bg-white text-blue-900 shadow-xs';
+      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
+      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs border border-slate-200 cursor-pointer';
     }
   }
 
   // ============================================================================
-  // 1. VUE PAR JOUR (CARTES ADAPTÉES MOBILE & TOUS ÉCRANS)
+  // 1. VUE PAR JOUR (POSTES CLINIQUES & SECTEURS DE SOINS - CHUL)
   // ============================================================================
   function renderDayView(schedule) {
     const pillsContainer = document.getElementById('day-pills-container');
@@ -909,7 +911,7 @@
     }
     const selIdx = state.selectedDayIndex;
 
-    // 1. Boutons pilules des 7 jours
+    // 1. Boutons calendrier des 7 jours
     let pillsHtml = '';
     schedule.daysData.forEach((d) => {
       const isSelected = d.dayIndex === selIdx;
@@ -918,24 +920,24 @@
 
       let pillClass = '';
       if (isSelected) {
-        pillClass = 'bg-blue-600 text-white shadow-md ring-2 ring-blue-400 font-black';
+        pillClass = 'bg-slate-900 text-white border-slate-900 font-bold shadow-2xs';
       } else if (isToday) {
-        pillClass = 'bg-blue-50 text-blue-900 border-2 border-blue-400 hover:bg-blue-100 font-extrabold';
+        pillClass = 'bg-blue-50 text-blue-950 border border-blue-400 hover:bg-blue-100 font-bold';
       } else if (isWeekend) {
-        pillClass = 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200 font-semibold';
+        pillClass = 'bg-slate-50 text-slate-500 border border-slate-200 hover:bg-slate-100 font-medium';
       } else {
-        pillClass = 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 font-bold';
+        pillClass = 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 font-semibold';
       }
 
       pillsHtml += `
         <button 
           type="button" 
           data-day-index="${d.dayIndex}"
-          class="day-pill-btn shrink-0 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl text-xs transition flex flex-col items-center min-w-[70px] sm:min-w-[82px] cursor-pointer ${pillClass}"
+          class="day-pill-btn shrink-0 px-3 py-2 rounded-lg text-xs transition flex flex-col items-center min-w-[76px] sm:min-w-[88px] cursor-pointer ${pillClass}"
         >
           <div class="flex items-center gap-1 leading-tight">
             <span>${d.dayInfo.short}</span>
-            ${isToday ? '<span class="text-[8px] sm:text-[9px] px-1 py-0.2 rounded bg-amber-400 text-slate-900 font-black">Auj.</span>' : ''}
+            ${isToday ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-400 text-slate-950 font-bold">Auj.</span>' : ''}
             ${isWeekend && !isToday ? '<span class="text-[9px] text-slate-400">⚪</span>' : ''}
           </div>
           <span class="text-[10px] opacity-80 mt-0.5">${d.dateFormatted}</span>
@@ -958,24 +960,24 @@
     if (dayHeader) {
       dayHeader.innerHTML = `
         <div class="flex items-center gap-2 flex-wrap">
-          <span class="text-sm sm:text-base font-black text-slate-900">
+          <span class="text-sm sm:text-base font-bold text-slate-900">
             ${activeDay.dayInfo.label} ${activeDay.dateFormatted}
           </span>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${
-            shiftInfo?.shift === 'matin' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-indigo-100 text-indigo-900 border border-indigo-300'
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold ${
+            shiftInfo?.shift === 'matin' ? 'bg-amber-100 text-amber-950 border border-amber-300' : 'bg-slate-200 text-slate-800 border border-slate-300'
           }">
             ${shiftInfo?.badgeLabel || ''} • Équipe ${schedule.equipe}
           </span>
           ${
             activeDay.isToday
-              ? '<span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-blue-600 text-white uppercase tracking-wider">Aujourd\'hui</span>'
+              ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-blue-700 text-white uppercase tracking-wider">Aujourd\'hui</span>'
               : activeDay.isWeekend
-              ? '<span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-slate-200 text-slate-700 uppercase tracking-wider">Repos</span>'
+              ? '<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-slate-200 text-slate-700 uppercase tracking-wider">Repos</span>'
               : ''
           }
         </div>
-        <span class="text-[11px] font-bold text-slate-500">
-          ${activeDay.isWeekend ? 'Week-end' : 'Jour ouvré'}
+        <span class="text-[11px] font-semibold text-slate-500">
+          ${activeDay.isWeekend ? 'Week-end hospitalier' : 'Journée clinique'}
         </span>
       `;
     }
@@ -983,19 +985,19 @@
     // 3. Grille des 4 cartes ou message Week-end
     if (activeDay.isWeekend) {
       cardsGrid.innerHTML = `
-        <div class="col-span-full bg-white rounded-3xl p-6 sm:p-8 text-center border border-slate-300 shadow-xs">
-          <div class="w-12 h-12 sm:w-14 sm:h-14 bg-slate-100 text-slate-600 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-slate-200">
-            <svg class="w-6 h-6 sm:w-7 sm:h-7 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        <div class="col-span-full bg-white rounded-xl p-6 sm:p-8 text-center border border-slate-300 shadow-xs">
+          <div class="w-12 h-12 bg-slate-100 text-slate-700 rounded-lg flex items-center justify-center mx-auto mb-3 border border-slate-200">
+            <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
             </svg>
           </div>
-          <h3 class="text-base sm:text-lg font-black text-slate-900">Week-end • Repos de Service (R.A.S)</h3>
-          <p class="text-xs sm:text-sm text-slate-600 max-w-md mx-auto mt-1 font-medium">
-            Aucun étudiant stagiaire n'est de garde le samedi et le dimanche.
+          <h3 class="text-base sm:text-lg font-bold text-slate-900">Service de Week-end • R.A.S (Repos)</h3>
+          <p class="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto mt-1 font-medium">
+            Conformément aux modalités du stage aux Urgences Pédiatriques, aucun service régulier d'externat ou de stage de jour n'est programmé le samedi et le dimanche.
           </p>
-          <div class="inline-flex items-center gap-2 mt-4 px-3.5 py-1.5 rounded-full bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold">
+          <div class="inline-flex items-center gap-2 mt-4 px-3.5 py-1.5 rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold">
             <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-            <span>Reprise de la rotation le <strong>Lundi matin à 00h00</strong></span>
+            <span>Reprise de la rotation clinique : <strong>Lundi matin à 07h30</strong></span>
           </div>
         </div>
       `;
@@ -1004,14 +1006,14 @@
 
     if (schedule.allStagiaires.length === 0) {
       cardsGrid.innerHTML = `
-        <div class="col-span-full bg-white rounded-3xl p-8 text-center border border-slate-300 shadow-xs">
-          <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3 border border-blue-200">
-            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <div class="col-span-full bg-white rounded-xl p-8 text-center border border-slate-300 shadow-xs">
+          <div class="w-12 h-12 bg-slate-100 text-slate-700 rounded-lg flex items-center justify-center mx-auto mb-3 border border-slate-300">
+            <svg class="w-6 h-6 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
             </svg>
           </div>
-          <h3 class="text-base font-black text-slate-900">Aucun stagiaire dans l'Équipe ${schedule.equipe}</h3>
-          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">Vous pouvez ajouter des collègues dans l'Équipe ${schedule.equipe} ou modifier leur affectation depuis le bouton <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> en haut.</p>
+          <h3 class="text-base font-bold text-slate-900">Aucun stagiaire enregistré dans l'Équipe ${schedule.equipe}</h3>
+          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto font-medium">Vous pouvez configurer les affectations depuis le bouton <strong class="text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300">Administration</strong> en haut à droite.</p>
         </div>
       `;
       return;
@@ -1020,14 +1022,22 @@
     const query = state.searchQuery.trim().toLowerCase();
     let cardsHtml = '';
 
-    activeDay.roomAssignments.forEach((room) => {
+    const SECTOR_METADATA = [
+      { code: "SECTEUR 01 • ACCUEIL & TRI", topBar: "border-t-4 border-t-blue-600" },
+      { code: "SECTEUR 02 • SOINS & VVP", topBar: "border-t-4 border-t-emerald-600" },
+      { code: "SECTEUR 03 • SAUV & DÉCHOCAGE", topBar: "border-t-4 border-t-rose-600" },
+      { code: "SECTEUR 04 • UHCD OBSERVATION", topBar: "border-t-4 border-t-purple-600" }
+    ];
+
+    activeDay.roomAssignments.forEach((room, roomIdx) => {
       const isRoomHighlighted = query && room.students.some((s) => s.nom.toLowerCase().includes(query));
+      const sectorMeta = SECTOR_METADATA[roomIdx] || { code: `SECTEUR 0${roomIdx + 1}`, topBar: "border-t-4 border-t-slate-600" };
 
       let studentsHtml = '';
       if (room.students.length === 0) {
         studentsHtml = `
-          <div class="p-3 text-center text-xs text-slate-400 italic bg-slate-50 rounded-xl border border-dashed border-slate-200">
-            ${room.absentStudents && room.absentStudents.length > 0 ? 'Stagiaires absent(s) aujourd\'hui' : 'Aucun stagiaire en poste'}
+          <div class="p-3 text-center text-xs text-slate-400 italic bg-slate-50 rounded-lg border border-dashed border-slate-200">
+            ${room.absentStudents && room.absentStudents.length > 0 ? 'Stagiaires absent(s) aujourd\'hui' : 'Aucun stagiaire assigné sur ce créneau'}
           </div>
         `;
       } else {
@@ -1035,20 +1045,20 @@
           .map((student) => {
             const isMatch = query && student.nom.toLowerCase().includes(query);
             return `
-              <div class="flex items-center justify-between p-2 rounded-xl transition ${
+              <div class="flex items-center justify-between p-2 rounded-lg transition ${
                 isMatch
-                  ? 'bg-amber-100 border-2 border-amber-400 ring-2 ring-amber-300 text-amber-950 font-black shadow-xs'
-                  : 'bg-slate-50/90 border border-slate-100 text-slate-800'
+                  ? 'bg-amber-50 border-2 border-amber-400 text-amber-950 font-bold shadow-2xs'
+                  : 'bg-slate-50 border border-slate-200 text-slate-800'
               }">
                 <div class="flex items-center gap-2 truncate">
-                  <span class="w-6 h-6 rounded-full bg-white text-slate-700 font-bold flex items-center justify-center text-[10px] shrink-0 border border-slate-200 shadow-2xs">
+                  <span class="w-6 h-6 rounded-md bg-white text-slate-700 font-bold flex items-center justify-center text-[10px] shrink-0 border border-slate-300">
                     ${getInitials(student.nom)}
                   </span>
                   <span class="text-xs ${isMatch ? 'font-black text-amber-950' : 'font-semibold'} truncate">
                     ${escapeHtml(student.nom)}
                   </span>
                 </div>
-                ${isMatch ? '<span class="text-[9px] bg-amber-500 text-white font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">Votre poste</span>' : ''}
+                ${isMatch ? '<span class="text-[9px] bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">Votre poste</span>' : ''}
               </div>
             `;
           })
@@ -1058,40 +1068,46 @@
       let absentHtml = '';
       if (room.absentStudents && room.absentStudents.length > 0) {
         absentHtml = `
-          <div class="mt-2 pt-2 border-t border-slate-100 flex items-center gap-1.5 text-[10px] text-slate-500 font-semibold bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-200">
+          <div class="mt-2 pt-2 border-t border-slate-200 flex items-center gap-1.5 text-[10px] text-slate-500 font-medium bg-slate-50 px-2.5 py-1.5 rounded-md border border-slate-200">
             <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span>
-            <span class="truncate">Absent(e) : <span class="line-through text-slate-500">${room.absentStudents.map(s => escapeHtml(s.nom)).join(', ')}</span></span>
+            <span class="truncate">Absent(s) : <span class="line-through text-slate-500">${room.absentStudents.map(s => escapeHtml(s.nom)).join(', ')}</span></span>
           </div>
         `;
       }
 
       cardsHtml += `
-        <div class="bg-white rounded-2xl border-2 ${
-          isRoomHighlighted ? 'border-amber-400 ring-4 ring-amber-100 shadow-md' : room.cardBorder
-        } p-4 shadow-xs flex flex-col justify-between transition-all hover:shadow-md">
+        <div class="bg-white rounded-xl border ${sectorMeta.topBar} ${
+          isRoomHighlighted ? 'border-amber-400 ring-2 ring-amber-200 shadow-md' : 'border-slate-300'
+        } p-4 shadow-xs flex flex-col justify-between transition-all hover:border-slate-400">
           <div>
-            <!-- En-tête salle -->
-            <div class="flex items-start justify-between gap-2 mb-2 pb-2.5 border-b border-slate-100">
-              <div class="flex items-center gap-2">
-                <span class="text-2xl">${room.emoji}</span>
-                <div>
+            <!-- En-tête secteur hospitalier -->
+            <div class="flex items-start justify-between gap-2 mb-2 pb-2 border-b border-slate-100">
+              <div>
+                <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">
+                  ${sectorMeta.code}
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <span class="text-xl leading-none">${room.emoji}</span>
                   <h4 class="font-black text-sm text-slate-900 leading-tight">${room.name}</h4>
-                  <span class="inline-block mt-0.5 text-[10px] font-extrabold px-1.5 py-0.2 rounded ${room.badgeClass}">
+                  <span class="inline-block text-[10px] font-bold px-1.5 py-0.2 rounded border ${room.badgeClass}">
                     ${room.groupName}
                   </span>
                 </div>
               </div>
-              <span class="text-[11px] font-black px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 shrink-0" title="${room.students.length} actif(s)">
-                ${room.students.length}
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0" title="${room.students.length} stagiaire(s) en poste">
+                ${room.students.length} ${room.students.length > 1 ? 'postes' : 'poste'}
               </span>
             </div>
 
-            <p class="text-[11px] text-slate-500 mb-3 leading-snug">${room.description}</p>
+            <!-- Description du secteur -->
+            <div class="p-2.5 rounded-lg bg-slate-50/80 border border-slate-100 text-[11px] text-slate-600 mb-3 leading-snug">
+              ${room.description}
+            </div>
 
             <!-- Liste des stagiaires affectés -->
             <div class="space-y-1.5 mb-2">
-              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 flex items-center justify-between">
-                <span>Stagiaires en poste :</span>
+              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
+                <span>Effectif en poste :</span>
                 <span>${room.students.length} actif${room.students.length > 1 ? 's' : ''}</span>
               </div>
               ${studentsHtml}
@@ -1099,9 +1115,9 @@
             </div>
           </div>
 
-          <!-- Rôle & Soins -->
+          <!-- Rôle & Missions cliniques -->
           <div class="mt-3 pt-2.5 border-t border-slate-100 text-[10px] text-slate-500 leading-tight">
-            <strong class="text-slate-700">Rôle :</strong> ${room.roleInfo}
+            <strong class="text-slate-700">Missions cliniques :</strong> ${room.roleInfo}
           </div>
         </div>
       `;
@@ -1131,10 +1147,10 @@
       headerHtml += `
         <th class="p-2 sm:p-2.5 text-center min-w-[95px] sm:min-w-[130px] border-b-2 ${
           isToday
-            ? 'bg-blue-100/80 border-b-blue-600 text-blue-950 font-black'
+            ? 'bg-blue-100/90 border-b-blue-700 text-blue-950 font-bold'
             : isWeekend
             ? 'bg-slate-50 border-b-slate-300 text-slate-500'
-            : 'border-b-slate-300 text-slate-700'
+            : 'bg-slate-100 border-b-slate-300 text-slate-800'
         }">
           <div class="flex items-center justify-center gap-1">
             <span class="font-bold sm:font-black">${day.dayInfo.short}</span>
@@ -1142,9 +1158,9 @@
           </div>
           ${
             isToday
-              ? '<span class="inline-block mt-0.5 px-1 sm:px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] bg-blue-600 text-white font-extrabold uppercase">Auj.</span>'
+              ? '<span class="inline-block mt-0.5 px-1 sm:px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] bg-blue-700 text-white font-bold uppercase">Auj.</span>'
               : isWeekend
-              ? '<span class="inline-block mt-0.5 px-1 sm:px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] bg-slate-200 text-slate-600 font-bold uppercase">Repos</span>'
+              ? '<span class="inline-block mt-0.5 px-1 sm:px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] bg-slate-200 text-slate-600 font-bold uppercase">R.A.S</span>'
               : ''
           }
         </th>
@@ -1162,13 +1178,13 @@
         <tr>
           <td colspan="8" class="p-8 text-center text-xs text-slate-500 font-semibold bg-slate-50/50">
             <div class="max-w-md mx-auto space-y-2">
-              <div class="w-10 h-10 bg-blue-100 text-blue-700 rounded-xl flex items-center justify-center mx-auto mb-2">
-                <svg class="w-5 h-5 text-blue-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <div class="w-10 h-10 bg-slate-100 text-slate-700 rounded-lg flex items-center justify-center mx-auto mb-2 border border-slate-300">
+                <svg class="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                 </svg>
               </div>
-              <p class="font-bold text-slate-700 text-sm">Aucun stagiaire dans l'Équipe ${schedule.equipe}.</p>
-              <p class="text-xs text-slate-500">Accédez à l'espace <strong class="text-slate-900 bg-slate-100 px-2 py-0.5 rounded border border-slate-300">Admin</strong> pour configurer ou ajouter des étudiants dans l'Équipe ${schedule.equipe}.</p>
+              <p class="font-bold text-slate-800 text-sm">Aucun stagiaire affecté dans l'Équipe ${schedule.equipe}.</p>
+              <p class="text-xs text-slate-500">Accédez à l'espace <strong class="text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-300">Administration</strong> pour configurer les affectations d'équipe.</p>
             </div>
           </td>
         </tr>
@@ -1213,7 +1229,7 @@
         if (isWeekend) {
           cellsHtml += `
             <td class="p-1 sm:p-2 text-center transition ${isToday ? 'col-today bg-blue-50/50' : 'bg-slate-50/40'}">
-              <span class="inline-flex items-center justify-center px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-md text-[10px] sm:text-[11px] font-black text-slate-500 bg-slate-100 border border-slate-300 shadow-2xs">
+              <span class="inline-flex items-center justify-center px-2 py-0.5 rounded text-[10px] font-bold text-slate-600 bg-slate-100 border border-slate-300">
                 R.A.S
               </span>
             </td>
@@ -1224,14 +1240,14 @@
           const partnerTitle = partnerNames ? `En binôme avec ${escapeHtml(partnerNames)}` : '';
           cellsHtml += `
             <td class="p-1 sm:p-2 text-center transition ${isToday ? 'col-today' : ''}" title="${partnerTitle}">
-              <span class="inline-flex flex-col items-center justify-center gap-0.5 px-1.5 sm:px-2 py-1 rounded-lg text-[10px] sm:text-xs font-black border ${room.badgeClass} ${
-                isToday ? 'ring-2 ring-blue-500 shadow-xs' : ''
+              <span class="inline-flex flex-col items-center justify-center gap-0.5 px-1.5 sm:px-2 py-1 rounded-md text-[10px] sm:text-xs font-bold border ${room.badgeClass} ${
+                isToday ? 'ring-2 ring-blue-600 shadow-2xs' : ''
               }">
                 <div class="flex items-center gap-0.5 sm:gap-1">
                   <span class="text-xs sm:text-sm leading-none">${room.emoji}</span>
                   <span class="truncate">${room.shortName}</span>
                 </div>
-                ${partnerNames ? `<span class="text-[9px] font-semibold text-slate-600 truncate max-w-[85px] sm:max-w-[110px] leading-tight hidden sm:block">avec ${escapeHtml(partnerNames)}</span>` : ''}
+                ${partnerNames ? `<span class="text-[9px] font-medium text-slate-600 truncate max-w-[85px] sm:max-w-[110px] leading-tight hidden sm:block">avec ${escapeHtml(partnerNames)}</span>` : ''}
               </span>
             </td>
           `;
