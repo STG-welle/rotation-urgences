@@ -107,16 +107,19 @@ serve(async (req: Request) => {
       }
     }
 
-    // C. Endpoint GET pour activer le Bot Répondeur sur Green API (incomingWebhook: yes)
+    // C. Endpoint GET pour activer le Bot Répondeur sur Green API (incoming + outgoing)
     if (action === "enable_bot") {
       try {
         const setResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/setSettings/${greenApiToken}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ incomingWebhook: "yes" })
+          body: JSON.stringify({ 
+            incomingWebhook: "yes",
+            outgoingMessageWebhook: "yes" 
+          })
         });
         const setData = await setResp.json();
-        return new Response(JSON.stringify({ success: true, message: "Bot activé sur Green API !", result: setData }, null, 2), {
+        return new Response(JSON.stringify({ success: true, message: "Bot activé sur Green API (entrant + sortant) !", result: setData }, null, 2), {
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
         });
       } catch (e) {
@@ -247,23 +250,28 @@ serve(async (req: Request) => {
         );
       }
 
-      // 2. Traitement des messages entrants : Bot Répondeur Interactif (mot-clé "planning")
-      if (typeWebhook === "incomingMessageReceived") {
+      // 2. Traitement des messages : Bot Répondeur Interactif (mot-clé "planning")
+      // Gère les messages des stagiaires (incomingMessageReceived) ET de l'admin (outgoingMessageReceived)
+      if (typeWebhook === "incomingMessageReceived" || typeWebhook === "outgoingMessageReceived") {
         const messageData = payload.messageData || {};
         const textMessage = (
           messageData.textMessageData?.textMessage ||
           messageData.extendedTextMessageData?.text ||
+          messageData.caption ||
           ""
         ).trim().toLowerCase();
 
         const chatId = payload.senderData?.chatId;
-        const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Bonjour";
+        const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Stagiaire";
         const quotedMessageId = payload.idMessage;
 
-        console.log(`📩 Message WhatsApp reçu de ${senderName} (${chatId}) : "${textMessage}"`);
+        console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${chatId}) : "${textMessage}"`);
+
+        // Protection anti-boucle : Ignorer si c'est le bot lui-même qui a envoyé le message
+        const isBotMessage = textMessage.includes("voici le planning officiel") || textMessage.includes("rotation-urgences");
 
         // Détection du mot "planning"
-        if (chatId && /\bplanning\b/i.test(textMessage)) {
+        if (chatId && !isBotMessage && /\bplanning\b/i.test(textMessage)) {
           console.log(`🤖 [BOT INTERACTIF] Mot-clé "planning" détecté ! Envoi de l'image au chat ${chatId}...`);
 
           const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
@@ -273,7 +281,9 @@ serve(async (req: Request) => {
 
           try {
             const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
-            const sendResp = await fetch(sendFileUrl, {
+            
+            // Tentative 1 : avec citation du message
+            let sendResp = await fetch(sendFileUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -285,8 +295,25 @@ serve(async (req: Request) => {
               })
             });
 
-            const sendResult = await sendResp.json().catch(() => ({}));
-            console.log("✅ Résultat envoi sendFileByUrl :", JSON.stringify(sendResult));
+            let sendResult = await sendResp.json().catch(() => ({}));
+
+            // Si échec avec quotedMessageId (arrive parfois sur messages sortants du téléphone), repli sans citation
+            if (!sendResp.ok || sendResult.error) {
+              console.warn("Retentative d'envoi sendFileByUrl sans quote...", sendResult);
+              sendResp = await fetch(sendFileUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chatId,
+                  urlFile: publicImageUrl,
+                  fileName: "planning-semaine.png",
+                  caption: captionText
+                })
+              });
+              sendResult = await sendResp.json().catch(() => ({}));
+            }
+
+            console.log("✅ Résultat final Green API sendFileByUrl :", JSON.stringify(sendResult));
 
             return new Response(
               JSON.stringify({
