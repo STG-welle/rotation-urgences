@@ -262,10 +262,11 @@ serve(async (req: Request) => {
         ).trim().toLowerCase();
 
         const chatId = payload.senderData?.chatId;
+        const senderId = payload.senderData?.sender || payload.senderData?.chatId || "";
         const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Stagiaire";
         const quotedMessageId = payload.idMessage;
 
-        console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${chatId}) : "${textMessage}"`);
+        console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${senderId} / ${chatId}) : "${textMessage}"`);
 
         // Protection anti-boucle : Ignorer les images et les messages du bot
         if (payload.messageData?.typeMessage === "imageMessage") {
@@ -275,7 +276,26 @@ serve(async (req: Request) => {
 
         // Détection du mot "planning"
         if (chatId && !isBotMessage && /\bplanning\b/i.test(textMessage)) {
-          console.log(`🤖 [BOT INTERACTIF] Mot-clé "planning" détecté ! Envoi de l'image de rappel au chat ${chatId}...`);
+          // Filtrage strict : seuls l'Admin et les délégués désignés peuvent déclencher le bot
+          const authorizedSignatures = [
+            "7666132",   // Admin (07666132 / 24107666132)
+            "76353912",  // Praise (24176353912)
+            "7927294",   // Zeus (24107927294)
+            "7235223",   // Esther Georda (24107235223)
+          ];
+
+          const senderDigits = senderId.replace(/[^0-9]/g, "");
+          const isAuthorized = authorizedSignatures.some(sig => senderDigits.endsWith(sig));
+
+          if (!isAuthorized) {
+            console.log(`⛔ Demande ignorée : ${senderName} (${senderId}) n'est pas autorisé à appeler le bot.`);
+            return new Response(
+              JSON.stringify({ success: true, ignored: "unauthorized_sender", sender: senderId }),
+              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
+
+          console.log(`🤖 [BOT AUTORISÉ] Demande de ${senderName} validée ! Envoi de l'image de rappel au chat ${chatId}...`);
 
           const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
           const captionText = `📋 *Rappel : Voici à nouveau le planning de rotation de la semaine.*`;
