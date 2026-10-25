@@ -137,11 +137,9 @@
         state.isDemoMode = false;
 
         setupRealtimeSubscription();
-        showToast('Connecté à Supabase en direct', 'success');
         return;
       } catch (err) {
         console.warn('Mode hors ligne:', err);
-        showToast('Mode hors ligne temporaire', 'info');
       }
     }
 
@@ -323,14 +321,14 @@
       team1: {
         shift: team1Shift,
         label: team1Shift === 'matin' ? 'Matinée' : 'Après-midi',
-        badgeLabel: team1Shift === 'matin' ? '☀️ Matin' : '🌙 Après-midi',
-        emoji: team1Shift === 'matin' ? '☀️' : '🌙'
+        badgeLabel: team1Shift === 'matin' ? 'Matin' : 'Après-midi',
+        emoji: ''
       },
       team2: {
         shift: team2Shift,
         label: team2Shift === 'matin' ? 'Matinée' : 'Après-midi',
-        badgeLabel: team2Shift === 'matin' ? '☀️ Matin' : '🌙 Après-midi',
-        emoji: team2Shift === 'matin' ? '☀️' : '🌙'
+        badgeLabel: team2Shift === 'matin' ? 'Matin' : 'Après-midi',
+        emoji: ''
       }
     };
   }
@@ -552,7 +550,7 @@
           code: 'ras',
           name: 'R.A.S',
           shortName: 'R.A.S',
-          emoji: '⚪',
+          emoji: '',
           badgeClass: 'bg-slate-100 text-slate-600 border-slate-300'
         };
       }
@@ -690,7 +688,7 @@
         } shadow-2xs`;
       }
       if (shiftSummaryBadge) {
-        shiftSummaryBadge.textContent = `${s1.emoji} Éq. 1 ${s1.label} • ${s2.emoji} Éq. 2 ${s2.label}`;
+        shiftSummaryBadge.textContent = `Éq. 1 ${s1.label} • Éq. 2 ${s2.label}`;
       }
     }
 
@@ -708,20 +706,7 @@
   function renderHeaderStatus() {
     const pill = document.getElementById('status-pill');
     if (!pill) return;
-
-    if (state.isSupabaseConnected) {
-      pill.innerHTML = `
-        <span class="inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
-        <span class="text-emerald-800">Système connecté</span>
-      `;
-      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 border border-emerald-300 select-none';
-    } else {
-      pill.innerHTML = `
-        <span class="inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
-        <span class="text-slate-600">Mode local</span>
-      `;
-      pill.className = 'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-slate-100 border border-slate-300 select-none';
-    }
+    pill.style.display = 'none';
   }
 
   function renderWeekHeader(schedule) {
@@ -825,20 +810,20 @@
 
       let todayText = '';
       if (isTodayWeekend) {
-        todayText = `<span class="font-bold px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 border border-slate-300">⚪ R.A.S (Week-end)</span>`;
+        todayText = `<span class="font-bold px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600 border border-slate-300">R.A.S (Week-end)</span>`;
       } else if (todayRoom) {
         const partnerStr = todayPartners.length > 0 ? ` • en binôme avec <strong class="text-slate-900">${todayPartners.map(p => escapeHtml(p.nom)).join(', ')}</strong>` : '';
-        todayText = `au secteur <span class="font-bold px-2 py-0.5 rounded text-xs ${todayRoom.badgeClass}">${todayRoom.emoji} ${todayRoom.name.toUpperCase()}</span>${partnerStr}`;
+        todayText = `au secteur <span class="font-bold px-2 py-0.5 rounded text-xs ${todayRoom.badgeClass}">${todayRoom.name.toUpperCase()}</span>${partnerStr}`;
       } else {
         todayText = `en roulement de service`;
       }
 
       let tomorrowText = '';
       if (isTomorrowWeekend) {
-        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-600">⚪ R.A.S</span>`;
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-600">R.A.S</span>`;
       } else if (tomorrowRoom) {
         const partnerStr = tomorrowPartners.length > 0 ? ` (avec ${tomorrowPartners.map(p => escapeHtml(p.nom)).join(', ')})` : '';
-        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-900">${tomorrowRoom.emoji} ${tomorrowRoom.name}</span><span class="text-slate-600 font-medium">${partnerStr}</span>`;
+        tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-900">${tomorrowRoom.name}</span><span class="text-slate-600 font-medium">${partnerStr}</span>`;
       } else {
         tomorrowText = `Demain (${dayNameTomorrow}) : <span class="font-bold text-slate-700">En roulement</span>`;
       }
@@ -938,7 +923,6 @@
           <div class="flex items-center gap-1 leading-tight">
             <span>${d.dayInfo.short}</span>
             ${isToday ? '<span class="text-[8px] px-1 py-0.2 rounded bg-amber-400 text-slate-950 font-bold">Auj.</span>' : ''}
-            ${isWeekend && !isToday ? '<span class="text-[9px] text-slate-400">⚪</span>' : ''}
           </div>
           <span class="text-[10px] opacity-80 mt-0.5">${d.dateFormatted}</span>
         </button>
@@ -1023,10 +1007,10 @@
     let cardsHtml = '';
 
     const SECTOR_METADATA = [
-      { code: "SECTEUR 01 • ACCUEIL & TRI", topBar: "border-t-4 border-t-blue-600" },
-      { code: "SECTEUR 02 • SOINS & VVP", topBar: "border-t-4 border-t-emerald-600" },
-      { code: "SECTEUR 03 • SAUV & DÉCHOCAGE", topBar: "border-t-4 border-t-rose-600" },
-      { code: "SECTEUR 04 • UHCD OBSERVATION", topBar: "border-t-4 border-t-purple-600" }
+      { code: "SECTEUR 01 • ACCUEIL & ORIENTATION", topBar: "border-t-4 border-t-blue-600" },
+      { code: "SECTEUR 02 • SOINS & BILANS", topBar: "border-t-4 border-t-emerald-600" },
+      { code: "SECTEUR 03 • URGENCES ABSOLUES", topBar: "border-t-4 border-t-rose-600" },
+      { code: "SECTEUR 04 • SURVEILLANCE", topBar: "border-t-4 border-t-purple-600" }
     ];
 
     activeDay.roomAssignments.forEach((room, roomIdx) => {
@@ -1087,7 +1071,7 @@
                   ${sectorMeta.code}
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <span class="text-xl leading-none">${room.emoji}</span>
+                  <span class="w-2.5 h-2.5 rounded-sm ${room.badgeDot} shrink-0"></span>
                   <h4 class="font-black text-sm text-slate-900 leading-tight">${room.name}</h4>
                   <span class="inline-block text-[10px] font-bold px-1.5 py-0.2 rounded border ${room.badgeClass}">
                     ${room.groupName}
@@ -1243,10 +1227,7 @@
               <span class="inline-flex flex-col items-center justify-center gap-0.5 px-1.5 sm:px-2 py-1 rounded-md text-[10px] sm:text-xs font-bold border ${room.badgeClass} ${
                 isToday ? 'ring-2 ring-blue-600 shadow-2xs' : ''
               }">
-                <div class="flex items-center gap-0.5 sm:gap-1">
-                  <span class="text-xs sm:text-sm leading-none">${room.emoji}</span>
-                  <span class="truncate">${room.shortName}</span>
-                </div>
+                <span class="truncate">${room.shortName}</span>
                 ${partnerNames ? `<span class="text-[9px] font-medium text-slate-600 truncate max-w-[85px] sm:max-w-[110px] leading-tight hidden sm:block">avec ${escapeHtml(partnerNames)}</span>` : ''}
               </span>
             </td>
@@ -1326,7 +1307,7 @@
         'bg-rose-50 text-rose-900 border-rose-200',
         'bg-purple-50 text-purple-900 border-purple-200'
       ];
-      const startingRooms = ['🔵 Triage', '🟢 Piquage', '🔴 Déchocage', '🟣 Observation'];
+      const startingRooms = ['Triage', 'Piquage', 'Déchocage', 'Observation'];
       summaryEl.innerHTML = schedule.groups
         .map((grp, idx) => {
           const letter = ['A', 'B', 'C', 'D'][idx];
@@ -1439,9 +1420,9 @@
           <div class="flex flex-col gap-0.5">
             <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Créneau disponible</span>
             <select data-admin-dispo="${s.id}" class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs" title="Disponibilité horaire">
-              <option value="tous" ${dispo === 'tous' ? 'selected' : ''}>☀️/🌙 Tous</option>
-              <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>☀️ Matin uniquement</option>
-              <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>🌙 Après-midi uniquement</option>
+              <option value="tous" ${dispo === 'tous' ? 'selected' : ''}>Matin & Après-midi (Tous)</option>
+              <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>Matin uniquement</option>
+              <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>Après-midi uniquement</option>
             </select>
           </div>
 
@@ -1450,10 +1431,10 @@
             <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Salle de départ Lundi</span>
             <select data-admin-group="${s.id}" class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs" title="Groupe d'affectation">
               <option value="" ${!s.groupe ? 'selected' : ''}>Équilibré</option>
-              <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • 🔵 Triage</option>
-              <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • 🟢 Piquage</option>
-              <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • 🔴 Déchocage</option>
-              <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • 🟣 Observation</option>
+              <option value="A" ${s.groupe === 'A' ? 'selected' : ''}>Groupe A • Triage</option>
+              <option value="B" ${s.groupe === 'B' ? 'selected' : ''}>Groupe B • Piquage</option>
+              <option value="C" ${s.groupe === 'C' ? 'selected' : ''}>Groupe C • Déchocage</option>
+              <option value="D" ${s.groupe === 'D' ? 'selected' : ''}>Groupe D • Observation</option>
             </select>
           </div>
         </div>
@@ -1467,7 +1448,7 @@
             <span class="truncate sm:whitespace-normal">
               <strong>Adaptation 100% Automatique :</strong> ${
                 isFixedSlot
-                  ? `Contrainte <strong>${dispo === 'matin' ? '☀️ Matin uniquement' : '🌙 Après-midi uniquement'}</strong>.`
+                  ? `Contrainte <strong>${dispo === 'matin' ? 'Matin uniquement' : 'Après-midi uniquement'}</strong>.`
                   : `Configuré(e) en <strong>Équipe Auto</strong>.`
               } Rattaché(e) à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.
             </span>
@@ -1543,7 +1524,7 @@
     s.groupe = validGroup;
     saveLocalCustomGroups();
 
-    const roomNames = { 'A': '🔵 Triage', 'B': '🟢 Piquage', 'C': '🔴 Déchocage', 'D': '🟣 Observation' };
+    const roomNames = { 'A': 'Triage', 'B': 'Piquage', 'C': 'Déchocage', 'D': 'Observation' };
 
     if (state.client && state.isSupabaseConnected) {
       try {
@@ -1778,9 +1759,9 @@
       text += `⚪ *R.A.S*\n_Reprise du service lundi matin._\n\n`;
     } else if (!hasTeam2) {
       const shift = team1Schedule.currentTeamShift;
-      text += `${shift.emoji} *${shift.label.toUpperCase()} • ÉQUIPE 1* (${shift.shift === 'matin' ? '07h30 - 14h30' : '14h00 - 20h30'})\n\n`;
+      text += `*${shift.label.toUpperCase()} • ÉQUIPE 1* (${shift.shift === 'matin' ? '07h30 - 14h30' : '14h00 - 20h30'})\n\n`;
       day1.roomAssignments.forEach((ra) => {
-        text += `${ra.emoji} *${ra.name}*\n\n`;
+        text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
           text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
@@ -1805,9 +1786,9 @@
         : { name: 'ÉQUIPE 1', day: day1 };
 
       // 1. Matinée
-      text += `☀️ *MATINÉE • ${morningTeam.name}* (07h30 - 14h30)\n\n`;
+      text += `*MATINÉE • ${morningTeam.name}* (07h30 - 14h30)\n\n`;
       morningTeam.day.roomAssignments.forEach((ra) => {
-        text += `${ra.emoji} *${ra.name}*\n\n`;
+        text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
           text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
@@ -1822,9 +1803,9 @@
       text += `───────────────\n`;
 
       // 3. Après-midi
-      text += `🌙 *APRÈS-MIDI • ${afternoonTeam.name}* (14h00 - 20h30)\n\n`;
+      text += `*APRÈS-MIDI • ${afternoonTeam.name}* (14h00 - 20h30)\n\n`;
       afternoonTeam.day.roomAssignments.forEach((ra) => {
-        text += `${ra.emoji} *${ra.name}*\n\n`;
+        text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
           text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
@@ -1871,25 +1852,25 @@
       } else if (!hasTeam2) {
         d1.roomAssignments.forEach((ra) => {
           const names = ra.students.map((st) => st.nom).join(' & ');
-          text += `  ${ra.emoji} *${ra.name} :* ${names || '(aucun)'}\n`;
+          text += `  ${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name} :* ${names || '(aucun)'}\n`;
         });
         text += `\n`;
       } else {
         const d2 = team2Schedule.daysData[d];
         const team1IsMorning = team1Schedule.shifts.team1.shift === 'matin';
-        const morningDay = team1IsMorning ? { name: 'Éq.1 (☀️ Matin)', day: d1 } : { name: 'Éq.2 (☀️ Matin)', day: d2 };
-        const afternoonDay = team1IsMorning ? { name: 'Éq.2 (🌙 Soir)', day: d2 } : { name: 'Éq.1 (🌙 Soir)', day: d1 };
+        const morningDay = team1IsMorning ? { name: 'Éq.1 (Matin)', day: d1 } : { name: 'Éq.2 (Matin)', day: d2 };
+        const afternoonDay = team1IsMorning ? { name: 'Éq.2 (Soir)', day: d2 } : { name: 'Éq.1 (Soir)', day: d1 };
 
         text += `  *${morningDay.name} :*\n`;
         morningDay.day.roomAssignments.forEach((ra) => {
           const names = ra.students.map((st) => st.nom).join(' & ');
-          if (names) text += `    ${ra.emoji} ${ra.name} : ${names}\n`;
+          if (names) text += `    ${ra.emoji ? ra.emoji + ' ' : ''}${ra.name} : ${names}\n`;
         });
 
         text += `  *${afternoonDay.name} :*\n`;
         afternoonDay.day.roomAssignments.forEach((ra) => {
           const names = ra.students.map((st) => st.nom).join(' & ');
-          if (names) text += `    ${ra.emoji} ${ra.name} : ${names}\n`;
+          if (names) text += `    ${ra.emoji ? ra.emoji + ' ' : ''}${ra.name} : ${names}\n`;
         });
         text += `\n`;
       }
