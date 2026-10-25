@@ -24,21 +24,21 @@ const ROOMS = [
     code: "piquage",
     name: "Piquage",
     emoji: "🟢",
-    role: "Voies veineuses périphériques, bilans d’urgence, soins infirmiers et ECG"
+    role: "Soins infirmiers, bilans d’urgence et ECG"
   },
   {
     id: 2,
     code: "dechoc",
     name: "Déchocage",
     emoji: "🔴",
-    role: "Prise en charge des détresses vitales et urgences absolues (SAUV, réanimation)"
+    role: "Prise en charge des détresses vitales et urgences absolues"
   },
   {
     id: 3,
     code: "observation",
     name: "Observation",
     emoji: "🟣",
-    role: "Surveillance clinique rapprochée, attente de résultats ou d'hospitalisation (UHCD)"
+    role: "Surveillance clinique rapprochée et attente de résultats"
   }
 ];
 
