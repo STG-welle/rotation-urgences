@@ -694,11 +694,11 @@
 
     if (btn1 && btn2) {
       if (state.selectedEquipe === '1') {
-        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-blue-700 text-white shadow-2xs cursor-pointer';
-        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all bg-blue-700 text-white shadow-2xs cursor-pointer';
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
       } else {
-        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-blue-700 text-white shadow-2xs cursor-pointer';
-        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
+        btn2.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all bg-blue-700 text-white shadow-2xs cursor-pointer';
+        btn1.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
       }
     }
   }
@@ -871,14 +871,14 @@
       viewCards.classList.remove('hidden');
       viewTimetable.classList.add('hidden');
 
-      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs border border-slate-200 cursor-pointer';
-      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
+      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs border border-slate-200 cursor-pointer';
+      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
     } else {
       viewCards.classList.add('hidden');
       viewTimetable.classList.remove('hidden');
 
-      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
-      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs border border-slate-200 cursor-pointer';
+      btnCards.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all text-slate-700 hover:text-slate-900 cursor-pointer';
+      btnTimetable.className = 'flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:py-1.5 rounded-md text-xs font-bold transition-all bg-white text-slate-900 shadow-2xs border border-slate-200 cursor-pointer';
     }
   }
 
@@ -918,7 +918,7 @@
         <button 
           type="button" 
           data-day-index="${d.dayIndex}"
-          class="day-pill-btn shrink-0 px-3 py-2 rounded-lg text-xs transition flex flex-col items-center min-w-[76px] sm:min-w-[88px] cursor-pointer ${pillClass}"
+          class="day-pill-btn shrink-0 px-2.5 sm:px-3 py-2 rounded-lg text-xs transition flex flex-col items-center min-w-[70px] sm:min-w-[88px] cursor-pointer ${pillClass}"
         >
           <div class="flex items-center gap-1 leading-tight">
             <span>${d.dayInfo.short}</span>
@@ -938,12 +938,20 @@
       });
     });
 
+    // Centrage automatique de la pastille active sur écran mobile
+    const activePill = pillsContainer.querySelector(`[data-day-index="${selIdx}"]`);
+    if (activePill && typeof activePill.scrollIntoView === 'function') {
+      setTimeout(() => {
+        activePill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }, 50);
+    }
+
     // 2. En-tête du jour sélectionné
     const activeDay = schedule.daysData[selIdx] || schedule.daysData[0];
     const shiftInfo = schedule.currentTeamShift;
     if (dayHeader) {
       dayHeader.innerHTML = `
-        <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
           <span class="text-sm sm:text-base font-bold text-slate-900">
             ${activeDay.dayInfo.label} ${activeDay.dateFormatted}
           </span>
@@ -960,7 +968,7 @@
               : ''
           }
         </div>
-        <span class="text-[11px] font-semibold text-slate-500">
+        <span class="text-[11px] font-semibold text-slate-500 hidden sm:inline">
           ${activeDay.isWeekend ? 'Week-end hospitalier' : 'Journée clinique'}
         </span>
       `;
