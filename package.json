@@ -1,0 +1,12 @@
+{
+  "name": "rotation-urgences",
+  "version": "1.0.0",
+  "description": "Tableau de service et rotation des urgences pédiatriques CHUL",
+  "scripts": {
+    "send-planning": "node scripts/send-weekly-planning.js",
+    "test": "node test_daily_rotation.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.1"
+  }
+}

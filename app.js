@@ -641,6 +641,14 @@
   // RENDU DE L'INTERFACE
   // ============================================================================
   function render() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const isCaptureMode = urlParams.get('mode') === 'capture' || urlParams.get('export') === 'bot';
+
+    if (isCaptureMode) {
+      renderCaptureMode();
+      return;
+    }
+
     const schedule = calculateDailySchedule(state.weekOffset, state.selectedEquipe);
 
     renderHeaderStatus();
@@ -651,6 +659,209 @@
     renderDayView(schedule);
     renderTimetable(schedule);
     renderAdminPanel();
+  }
+
+  // ============================================================================
+  // MODE CAPTURE ÉCRAN BOT : 2 ÉQUIPES COMBINÉES (?mode=capture)
+  // ============================================================================
+  function renderCaptureMode() {
+    const screenshotZone = document.getElementById('planning-screenshot-zone');
+    const interactiveZone = document.getElementById('interactive-app-zone');
+    const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
+
+    // Cacher les éléments interactifs et les boutons superflus
+    if (interactiveZone) interactiveZone.classList.add('hidden');
+    if (header) header.classList.add('hidden');
+    if (footer) footer.classList.add('hidden');
+
+    if (!screenshotZone) return;
+    screenshotZone.classList.remove('hidden');
+
+    // Calculer le planning de la semaine pour Équipe 1 et Équipe 2
+    const s1 = calculateDailySchedule(state.weekOffset, '1');
+    const s2 = calculateDailySchedule(state.weekOffset, '2');
+
+    const shift1 = s1.currentTeamShift;
+    const shift2 = s2.currentTeamShift;
+
+    // Helper pour générer le tableau des 4 salles d'une équipe
+    function generateTeamBlock(sched, teamNum, shiftInfo) {
+      const activeCount = sched.activeStagiaires.length;
+      const isMorning = shiftInfo.shift === 'matin';
+      const badgeClass = isMorning
+        ? 'bg-amber-100 text-amber-950 border-amber-300'
+        : 'bg-indigo-100 text-indigo-950 border-indigo-300';
+      const shiftIcon = isMorning
+        ? `<svg class="w-4 h-4 text-amber-700 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>`
+        : `<svg class="w-4 h-4 text-indigo-700 inline shrink-0" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>`;
+
+      // En-têtes des 5 jours ouvrés (Lundi à Vendredi)
+      let thCols = '';
+      for (let d = 0; d < 5; d++) {
+        const day = sched.daysData[d];
+        thCols += `
+          <th class="p-2.5 text-center border border-slate-300 bg-slate-100 text-slate-800 font-bold min-w-[155px]">
+            <div class="text-xs uppercase tracking-wider text-slate-700">${day.dayInfo.label}</div>
+            <div class="text-[11px] font-semibold text-slate-500">${day.dateFormatted}</div>
+          </th>
+        `;
+      }
+
+      // Configuration des 4 salles
+      const roomsConfig = [
+        { code: 'SECTEUR 01', name: 'Triage', border: 'border-l-4 border-l-blue-600', dot: 'bg-blue-600', role: 'Accueil & Orientation' },
+        { code: 'SECTEUR 02', name: 'Piquage', border: 'border-l-4 border-l-emerald-600', dot: 'bg-emerald-600', role: 'Soins & Bilans' },
+        { code: 'SECTEUR 03', name: 'Déchocage', border: 'border-l-4 border-l-rose-600', dot: 'bg-rose-600', role: 'Urgences Absolues' },
+        { code: 'SECTEUR 04', name: 'Observation', border: 'border-l-4 border-l-purple-600', dot: 'bg-purple-600', role: 'Surveillance' }
+      ];
+
+      let rowsHtml = '';
+      for (let r = 0; r < 4; r++) {
+        const rc = roomsConfig[r];
+        let cellsHtml = '';
+
+        for (let d = 0; d < 5; d++) {
+          const roomAssigned = sched.daysData[d].roomAssignments[r];
+          const students = roomAssigned?.students || [];
+
+          let pills = '';
+          if (students.length === 0) {
+            pills = '<span class="text-xs text-slate-400 italic py-1 block text-center">—</span>';
+          } else {
+            pills = students
+              .map((s) => `
+                <div class="px-2.5 py-1 rounded-md bg-white border border-slate-300 text-xs font-bold text-slate-900 shadow-2xs flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full ${rc.dot} shrink-0"></span>
+                  <span class="truncate">${escapeHtml(s.nom)}</span>
+                </div>
+              `)
+              .join('');
+          }
+
+          cellsHtml += `
+            <td class="p-2 border border-slate-300 bg-white align-top">
+              <div class="flex flex-col gap-1.5">
+                ${pills}
+              </div>
+            </td>
+          `;
+        }
+
+        rowsHtml += `
+          <tr class="border-b border-slate-300">
+            <td class="p-3 border border-slate-300 bg-slate-50 font-bold ${rc.border} align-middle">
+              <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-1">${rc.code}</div>
+              <div class="text-sm font-black text-slate-900 leading-tight">${rc.name}</div>
+              <div class="text-[11px] font-semibold text-slate-500 mt-0.5">${rc.role}</div>
+            </td>
+            ${cellsHtml}
+          </tr>
+        `;
+      }
+
+      return `
+        <div class="bg-white rounded-2xl border-2 border-slate-300 overflow-hidden shadow-xs space-y-0">
+          <!-- Bandeau de l'équipe -->
+          <div class="p-3.5 bg-slate-50 border-b border-slate-300 flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-3">
+              <span class="px-3 py-1 bg-slate-900 text-white text-xs font-black rounded-lg tracking-wider uppercase">
+                📋 ÉQUIPE ${teamNum}
+              </span>
+              <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${badgeClass}">
+                ${shiftIcon}
+                <span>${shiftInfo.label}</span>
+              </div>
+            </div>
+            <div class="text-xs font-bold text-slate-600">
+              Effectif : <span class="text-slate-900 font-black">${activeCount} stagiaire${activeCount > 1 ? 's' : ''} actif${activeCount > 1 ? 's' : ''}</span>
+            </div>
+          </div>
+
+          <!-- Tableau des 4 salles -->
+          <div class="overflow-x-auto">
+            <table class="w-full border-collapse border border-slate-300 text-xs">
+              <thead>
+                <tr>
+                  <th class="p-2.5 text-left border border-slate-300 bg-slate-100 text-slate-700 font-bold w-48">
+                    Poste / Secteur
+                  </th>
+                  ${thCols}
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    screenshotZone.innerHTML = `
+      <div class="w-full max-w-[1240px] mx-auto bg-white p-6 sm:p-8 rounded-2xl border border-slate-300 shadow-md space-y-6">
+        
+        <!-- EN-TÊTE PRINCIPAL DE LA CAPTURE -->
+        <div class="flex items-center justify-between pb-5 border-b-2 border-slate-200 gap-4">
+          <div class="flex items-center gap-4 min-w-0">
+            <div class="w-14 h-14 rounded-xl bg-white border border-slate-300 p-1 flex items-center justify-center shadow-xs shrink-0 overflow-hidden">
+              <img src="logo-chul.png" alt="Logo CHUL" class="w-full h-full object-contain">
+            </div>
+            <div class="min-w-0">
+              <div class="text-xs font-black uppercase tracking-wider text-blue-700">
+                Centre Hospitalier Universitaire de Libreville (CHUL)
+              </div>
+              <h1 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight truncate">
+                Planning Hebdomadaire • Rotation des Urgences Pédiatriques
+              </h1>
+              <div class="text-xs text-slate-500 font-semibold">
+                Affectation officielle des stagiaires par secteur (Triage • Piquage • Déchocage • Observation)
+              </div>
+            </div>
+          </div>
+
+          <div class="text-right shrink-0">
+            <div class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs sm:text-sm font-black shadow-xs">
+              <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <span>Semaine du Lundi ${formatDateShort(s1.targetMonday)} au Dimanche ${formatDateShort(s1.targetSunday)}</span>
+            </div>
+            <div class="text-[11px] font-semibold text-slate-500 mt-1">
+              Alternance hebdomadaire Matin / Après-midi
+            </div>
+          </div>
+        </div>
+
+        <!-- SECTION 1 : ÉQUIPE 1 -->
+        ${generateTeamBlock(s1, '1', shift1)}
+
+        <!-- SÉPARATEUR VISUEL PROPRE -->
+        <div class="flex items-center gap-4 my-3">
+          <div class="flex-1 border-t-2 border-dashed border-slate-300"></div>
+          <span class="text-xs font-black text-slate-400 uppercase tracking-widest">• Rotation Clinique Urgences Pédiatriques •</span>
+          <div class="flex-1 border-t-2 border-dashed border-slate-300"></div>
+        </div>
+
+        <!-- SECTION 2 : ÉQUIPE 2 -->
+        ${generateTeamBlock(s2, '2', shift2)}
+
+        <!-- PIED DE CAPTURE OFFICIEL -->
+        <div class="pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-semibold">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            <span>Samedi & Dimanche : Repos de garde (R.A.S) • Reprise de la rotation lundi à 07h30</span>
+          </div>
+          <div>
+            Application web : <span class="font-bold text-slate-800">https://stg-welle.github.io/rotation-urgences/</span>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    // Attribut clé pour signaler à Playwright que les données sont complètement chargées
+    screenshotZone.setAttribute('data-loaded', 'true');
   }
 
   function renderTeamSwitcher(schedule) {

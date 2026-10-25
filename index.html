@@ -186,10 +186,22 @@
   <!-- ========================================================================= -->
   <!-- CONTENU PRINCIPAL                                                         -->
   <!-- ========================================================================= -->
-  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-3 sm:py-4 space-y-3.5 sm:space-y-4">
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-3 sm:py-4">
 
-    <!-- BANDEAU SEMAINE & RECHERCHE RAPIDE -->
-    <div class="bg-white rounded-xl p-3 sm:p-4 border border-slate-300 shadow-xs space-y-3">
+    <!-- ======================================================================= -->
+    <!-- ZONE DE CAPTURE ÉCRAN BOT : 2 ÉQUIPES COMBINÉES (?mode=capture)         -->
+    <!-- ======================================================================= -->
+    <div id="planning-screenshot-zone" class="hidden">
+      <!-- Rendu dynamique par app.js lorsque ?mode=capture ou ?export=bot est actif -->
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- ZONE INTERACTIVE NORMALE (SITE HABITUEL SANS ?mode=capture)            -->
+    <!-- ======================================================================= -->
+    <div id="interactive-app-zone" class="space-y-3.5 sm:space-y-4">
+
+      <!-- BANDEAU SEMAINE & RECHERCHE RAPIDE -->
+      <div class="bg-white rounded-xl p-3 sm:p-4 border border-slate-300 shadow-xs space-y-3">
       
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <!-- Date de la semaine -->
@@ -413,6 +425,7 @@
         </div>
       </div>
     </div>
+    </div> <!-- /#interactive-app-zone -->
 
   </main>
 
@@ -471,6 +484,17 @@
           </div>
           <span class="text-xs font-bold px-3 py-1 bg-blue-700 text-white rounded-md shadow-2xs shrink-0">Copier</span>
         </button>
+
+        <a href="?mode=capture" target="_blank" class="w-full p-3 sm:p-3.5 bg-slate-50 hover:bg-slate-100/80 border border-slate-300 rounded-xl text-left transition flex items-center justify-between cursor-pointer">
+          <div class="pr-2">
+            <div class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+              <span>Aperçu Bot Capture (Équipes 1 & 2)</span>
+              <span class="text-[9px] bg-slate-200 text-slate-700 px-1.5 py-0.2 rounded font-bold uppercase">Image HD</span>
+            </div>
+            <div class="text-[11px] text-slate-600 mt-0.5">Page consolidée des 2 équipes générée pour le bot WhatsApp</div>
+          </div>
+          <span class="text-xs font-bold px-3 py-1 bg-slate-900 text-white rounded-md shadow-2xs shrink-0">Ouvrir</span>
+        </a>
       </div>
 
       <div class="pt-2 border-t border-slate-200 text-center">
@@ -694,7 +718,7 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
 
   <!-- Scripts avec versionnage anti-cache forcé -->
-  <script src="config.js?v=20261025_1300"></script>
-  <script src="app.js?v=20261025_1300"></script>
+  <script src="config.js?v=20261025_1330"></script>
+  <script src="app.js?v=20261025_1330"></script>
 </body>
 </html>
