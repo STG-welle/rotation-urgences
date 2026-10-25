@@ -1759,7 +1759,7 @@
     let text = `🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*\n*Date : ${day1.dayInfo.label} ${day1.dateFormatted}*\n\n`;
 
     if (day1.isWeekend) {
-      text += `⚪ *R.A.S - Repos de garde*\n_Reprise du service lundi matin._\n\n`;
+      text += `⚪ *R.A.S*\n_Reprise du service lundi matin._\n\n`;
     } else if (!hasTeam2) {
       const shift = team1Schedule.currentTeamShift;
       text += `${shift.emoji} *${shift.label.toUpperCase()} • ÉQUIPE 1* (${shift.shift === 'matin' ? '07h30 - 14h30' : '14h00 - 20h30'})\n\n`;
@@ -1851,7 +1851,7 @@
       const d1 = team1Schedule.daysData[d];
       text += `📅 *${d1.dayInfo.label.toUpperCase()} ${d1.dateFormatted} :*\n`;
       if (d1.isWeekend) {
-        text += `  ⚪ *R.A.S* (Repos de garde pour tous les stagiaires)\n\n`;
+        text += `  ⚪ *R.A.S* (Reprise du service lundi matin)\n\n`;
       } else if (!hasTeam2) {
         d1.roomAssignments.forEach((ra) => {
           const names = ra.students.map((st) => st.nom).join(' & ');

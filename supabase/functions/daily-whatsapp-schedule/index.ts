@@ -532,7 +532,7 @@ Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format :
 🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
 *Date : ${ctx.date}*
 
-⚪ *R.A.S - Repos de garde*
+⚪ *R.A.S*
 _Reprise du service lundi matin._
 
 🌐 *Planning complet de la semaine :*
@@ -749,7 +749,7 @@ function generateFallbackTemplate(ctx: {
   msg += `*Date : ${ctx.date}*\n\n`;
 
   if (ctx.isWeekend) {
-    msg += `⚪ *R.A.S - Repos de garde*\n`;
+    msg += `⚪ *R.A.S*\n`;
     msg += `_Reprise du service lundi matin._\n\n`;
   } else if (!ctx.hasTeam2) {
     const singleTeam = ctx.morningTeam.name === "Équipe 1" ? ctx.morningTeam : ctx.afternoonTeam;
