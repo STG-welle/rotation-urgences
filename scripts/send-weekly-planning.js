@@ -114,8 +114,8 @@ async function main() {
 
   const isSunday = (new Date()).getDay() === 0;
   const defaultCaption = isSunday
-    ? "📅 Bonjour à tous ! Voici le planning complet de rotation des salles (Équipe 1 & Équipe 2) pour la semaine qui démarre demain lundi. Bon stage à tous !"
-    : "📢 Bonjour à tous ! Voici le planning complet de rotation des salles (Équipe 1 & Équipe 2) actualisé pour cette semaine. Bon stage à tous !";
+    ? "📅 Bonsoir à tous ! Voici le planning de rotation des salles (Équipe 1 & Équipe 2) pour la semaine prochaine."
+    : "📢 Mise à jour du planning : voici la version actualisée pour cette semaine !";
 
   const captionText = process.env.WHATSAPP_CAPTION || defaultCaption;
 
