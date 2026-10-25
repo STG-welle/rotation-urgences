@@ -17,6 +17,11 @@ window.APP_CONFIG = {
   // Date de référence par défaut du premier lundi de stage (format YYYY-MM-DD)
   DEFAULT_START_DATE: '2026-10-19',
 
+  // Déclencheur GitHub Actions (Envoi WhatsApp immédiat depuis l'Admin)
+  GITHUB_REPO: 'STG-welle/rotation-urgences',
+  GITHUB_WORKFLOW_ID: 'weekly-planning-screenshot.yml',
+  GITHUB_TOKEN: '', // Renseigné une seule fois dans l'espace Admin et mémorisé sur l'appareil
+
   // Définition des 4 Salles d'Urgence du service
   ROOMS: [
     {

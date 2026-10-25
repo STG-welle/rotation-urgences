@@ -1728,6 +1728,8 @@
         }
       });
     });
+
+    updateAdminTokenIndicator();
   }
 
   // ============================================================================
@@ -2284,13 +2286,139 @@
       closeModal('admin-modal');
     });
 
+    // Déclencheur Bot WhatsApp manuel (Espace Admin)
+    document.getElementById('btn-admin-trigger-bot')?.addEventListener('click', async () => {
+      await triggerWhatsAppBotFromAdmin();
+    });
 
+    document.getElementById('btn-toggle-github-token')?.addEventListener('click', () => {
+      const panel = document.getElementById('admin-github-token-setup');
+      if (panel) panel.classList.toggle('hidden');
+    });
+
+    document.getElementById('btn-admin-save-github-token')?.addEventListener('click', () => {
+      const input = document.getElementById('admin-github-token-input');
+      const val = input ? input.value.trim() : '';
+      if (val) {
+        localStorage.setItem('urgences_github_token', val);
+        showToast('Clé GitHub mémorisée sur cet appareil !', 'success');
+        document.getElementById('admin-github-token-setup')?.classList.add('hidden');
+        updateAdminTokenIndicator();
+      } else {
+        localStorage.removeItem('urgences_github_token');
+        showToast('Clé GitHub effacée', 'info');
+        updateAdminTokenIndicator();
+      }
+    });
 
     document.querySelectorAll('[data-close-modal]').forEach((btn) => {
       btn.addEventListener('click', () => {
         closeModal(btn.getAttribute('data-close-modal'));
       });
     });
+  }
+
+  function updateAdminTokenIndicator() {
+    const indicator = document.getElementById('admin-token-status-indicator');
+    const input = document.getElementById('admin-github-token-input');
+    const token = localStorage.getItem('urgences_github_token') || window.APP_CONFIG.GITHUB_TOKEN;
+    if (indicator) {
+      if (token) {
+        indicator.innerHTML = '<span class="text-emerald-700">● Clé autorisée</span>';
+      } else {
+        indicator.innerHTML = '<span class="text-amber-700">○ Clé requise</span>';
+      }
+    }
+    if (input && token && !input.value) {
+      input.value = token;
+    }
+  }
+
+  async function triggerWhatsAppBotFromAdmin() {
+    const btn = document.getElementById('btn-admin-trigger-bot');
+    const statusBox = document.getElementById('admin-bot-status');
+    if (!btn) return;
+
+    const token = localStorage.getItem('urgences_github_token') || window.APP_CONFIG.GITHUB_TOKEN;
+    const repo = window.APP_CONFIG.GITHUB_REPO || 'STG-welle/rotation-urgences';
+    const workflow = window.APP_CONFIG.GITHUB_WORKFLOW_ID || 'weekly-planning-screenshot.yml';
+
+    if (!token) {
+      showToast('Veuillez renseigner votre clé GitHub ci-dessous', 'warning');
+      const panel = document.getElementById('admin-github-token-setup');
+      if (panel) panel.classList.remove('hidden');
+      document.getElementById('admin-github-token-input')?.focus();
+      if (statusBox) {
+        statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-amber-50 border-amber-300 text-amber-950 block';
+        statusBox.textContent = 'Veuillez saisir votre clé GitHub (token) ci-dessous puis cliquer sur Enregistrer.';
+      }
+      return;
+    }
+
+    const originalHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('opacity-75', 'cursor-not-allowed');
+    btn.innerHTML = `
+      <svg class="animate-spin w-4 h-4 text-white shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg>
+      <span>Lancement du bot WhatsApp en cours...</span>
+    `;
+
+    if (statusBox) {
+      statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-900 flex items-center gap-2 block';
+      statusBox.innerHTML = `
+        <span class="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span>
+        <span>Demande transmise à GitHub Actions. Démarrage de la capture d'écran...</span>
+      `;
+    }
+
+    try {
+      const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Accept': 'application/vnd.github.v3+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          ref: 'main'
+        })
+      });
+
+      if (res.status === 204 || res.ok) {
+        showToast('Bot WhatsApp lancé avec succès !', 'success');
+        if (statusBox) {
+          statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-emerald-100/90 border-emerald-300 text-emerald-950 block space-y-1';
+          statusBox.innerHTML = `
+            <div class="font-bold flex items-center gap-1.5 text-emerald-900">
+              <svg class="w-4 h-4 text-emerald-700 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+              <span>✅ Bot déclenché avec succès !</span>
+            </div>
+            <p class="text-[11px] text-emerald-800 leading-relaxed">
+              Le robot génère l'image haute définition des deux équipes et l'envoie dans votre groupe WhatsApp. L'image arrivera dans environ 45 secondes.
+            </p>
+          `;
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || `Erreur HTTP ${res.status}`);
+      }
+    } catch (err) {
+      console.error('Erreur déclenchement bot:', err);
+      showToast('Erreur lors du déclenchement du bot', 'error');
+      if (statusBox) {
+        statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-rose-50 border-rose-300 text-rose-900 block';
+        statusBox.textContent = `❌ Échec du lancement : ${err.message}`;
+      }
+    } finally {
+      setTimeout(() => {
+        btn.disabled = false;
+        btn.classList.remove('opacity-75', 'cursor-not-allowed');
+        btn.innerHTML = originalHtml;
+      }, 4000);
+    }
   }
 
   function openModal(id) {

@@ -683,6 +683,72 @@
           </div>
         </div>
 
+        <!-- Diffusion manuelle immédiate sur WhatsApp via Bot Capture -->
+        <div class="border-t border-slate-200 pt-4 bg-emerald-50/70 p-4 rounded-xl border border-emerald-200 space-y-3">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-lg bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+            </div>
+            <div>
+              <h4 class="text-xs font-black uppercase tracking-wider text-emerald-950">
+                Diffusion WhatsApp Immédiate (Bot Capture HD)
+              </h4>
+              <p class="text-[11px] text-emerald-800 font-medium">
+                En cas de modification en cours de semaine, cliquez pour regénérer la capture d'écran des 2 équipes et l'envoyer immédiatement dans le groupe.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+            <button 
+              type="button" 
+              id="btn-admin-trigger-bot" 
+              class="flex-1 py-2.5 px-4 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-lg shadow-sm transition flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+            >
+              <svg class="w-4 h-4 text-white shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              <span>📸 Diffuser le planning sur WhatsApp maintenant</span>
+            </button>
+          </div>
+
+          <!-- Configuration du token GitHub (mémorisé dans le navigateur) -->
+          <div id="admin-github-token-setup" class="hidden pt-2 border-t border-emerald-200/60 space-y-2">
+            <label for="admin-github-token-input" class="block text-[10px] font-bold uppercase tracking-wider text-emerald-950">
+              Clé d'autorisation GitHub (Personal Access Token avec droit repo) :
+            </label>
+            <div class="flex gap-2">
+              <input 
+                type="password" 
+                id="admin-github-token-input" 
+                placeholder="ghp_..." 
+                class="flex-1 bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              >
+              <button 
+                type="button" 
+                id="btn-admin-save-github-token" 
+                class="px-3.5 py-1.5 bg-slate-900 text-white rounded-lg text-xs font-bold hover:bg-slate-800 transition cursor-pointer shrink-0"
+              >
+                Enregistrer
+              </button>
+            </div>
+            <p class="text-[10px] text-slate-500">Mémorisée uniquement sur cet appareil pour autoriser le déclenchement en 1 clic.</p>
+          </div>
+
+          <div class="flex items-center justify-between text-[10px] text-emerald-800 px-1">
+            <button type="button" id="btn-toggle-github-token" class="underline hover:text-emerald-950 cursor-pointer">
+              ⚙️ Paramètres de la clé GitHub
+            </button>
+            <span id="admin-token-status-indicator" class="font-bold"></span>
+          </div>
+
+          <!-- Zone de statut en direct -->
+          <div id="admin-bot-status" class="hidden text-xs font-semibold p-3 rounded-lg border transition-all"></div>
+        </div>
+
         <!-- Outil de test & simulation du changement de jour -->
         <div class="border-t border-slate-200 pt-4 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
           <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 mb-1">
@@ -718,7 +784,7 @@
   <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-xs w-full pointer-events-none"></div>
 
   <!-- Scripts avec versionnage anti-cache forcé -->
-  <script src="config.js?v=20261025_1330"></script>
-  <script src="app.js?v=20261025_1330"></script>
+  <script src="config.js?v=20261025_1435"></script>
+  <script src="app.js?v=20261025_1435"></script>
 </body>
 </html>
