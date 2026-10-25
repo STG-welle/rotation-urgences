@@ -2316,6 +2316,25 @@
         closeModal(btn.getAttribute('data-close-modal'));
       });
     });
+
+    // Fermeture automatique au clic sur l'arrière-plan (backdrop)
+    ['whatsapp-modal', 'pin-modal', 'admin-modal'].forEach((id) => {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) {
+            closeModal(id);
+          }
+        });
+      }
+    });
+
+    // Fermeture rapide avec la touche Échap
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        ['whatsapp-modal', 'pin-modal', 'admin-modal'].forEach((id) => closeModal(id));
+      }
+    });
   }
 
   function updateAdminTokenIndicator() {
@@ -2410,7 +2429,13 @@
       showToast('Erreur lors du déclenchement du bot', 'error');
       if (statusBox) {
         statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-rose-50 border-rose-300 text-rose-900 block';
-        statusBox.textContent = `❌ Échec du lancement : ${err.message}`;
+        if (err.message && (err.message.includes('Bad credentials') || err.message.includes('401'))) {
+          statusBox.textContent = '❌ Clé GitHub invalide ou expirée. Veuillez vérifier ou renouveler votre clé dans les paramètres ci-dessous.';
+          const panel = document.getElementById('admin-github-token-setup');
+          if (panel) panel.classList.remove('hidden');
+        } else {
+          statusBox.textContent = `❌ Échec du lancement : ${err.message}`;
+        }
       }
     } finally {
       setTimeout(() => {
@@ -2437,5 +2462,6 @@
     if (input) input.value = '';
     if (err) err.classList.add('hidden');
     openModal('pin-modal');
+    setTimeout(() => input?.focus(), 120);
   }
 })();

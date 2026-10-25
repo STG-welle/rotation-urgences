@@ -112,7 +112,7 @@ async function main() {
   const fileBuffer = fs.readFileSync(outputPath);
   const fileBlob = new Blob([fileBuffer], { type: 'image/png' });
 
-  const captionText = "📅 Bonjour à tous ! Voici le planning complet de rotation des salles (Équipe 1 & Équipe 2) pour cette semaine. Bon stage à tous !";
+  const captionText = process.env.WHATSAPP_CAPTION || "📅 Bonjour à tous ! Voici le planning complet de rotation des salles (Équipe 1 & Équipe 2) pour cette semaine. Bon stage à tous !";
 
   const formData = new FormData();
   formData.append('chatId', chatId);
