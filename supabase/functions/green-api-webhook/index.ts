@@ -19,6 +19,19 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
+// Cooldown anti-spam par chat (20 secondes)
+const lastBotReplyByChat = new Map<string, number>();
+const BOT_COOLDOWN_MS = 20000;
+
+// Contacts autorisés par défaut (signatures des numéros : derniers chiffres)
+// Modifiable aussi via variable d'environnement Supabase AUTHORIZED_WHATSAPP_NUMBERS
+const DEFAULT_AUTHORIZED_SIGNATURES = [
+  "7666132",   // Admin (07666132 / 24107666132)
+  "76353912",  // Praise (24176353912)
+  "7927294",   // Zeus (24107927294)
+  "7235223",   // Esther Georda (24107235223)
+];
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS_HEADERS });
@@ -107,15 +120,39 @@ serve(async (req: Request) => {
       }
     }
 
-    // C. Endpoint GET pour désactiver l'écoute des messages sur Green API
-    if (action === "disable_incoming") {
+    // C. Endpoints GET pour activer / désactiver l'écoute des messages
+    if (action === "enable_bot") {
+      try {
+        const setResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/setSettings/${greenApiToken}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            incomingWebhook: "yes",
+            outgoingMessageWebhook: "yes",
+            stateWebhook: "yes"
+          })
+        });
+        const setData = await setResp.json();
+        return new Response(JSON.stringify({ success: true, message: "Bot activé sur Green API (entrant + sortant) !", result: setData }, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    if (action === "disable_bot" || action === "disable_incoming") {
       try {
         const setResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/setSettings/${greenApiToken}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             incomingWebhook: "no",
-            outgoingMessageWebhook: "no" 
+            outgoingMessageWebhook: "no",
+            stateWebhook: "yes"
           })
         });
         const setData = await setResp.json();
@@ -314,6 +351,128 @@ serve(async (req: Request) => {
             stateInstance,
             alertTriggered: isCritical
           }),
+          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+        );
+      }
+
+      // 2. Traitement des messages : Bot Répondeur Interactif (mot-clé court "pln" ou "planning")
+      // Gère les messages des participants (incomingMessageReceived) ET du numéro du bot (outgoingMessageReceived)
+      if (typeWebhook === "incomingMessageReceived" || typeWebhook === "outgoingMessageReceived") {
+        const messageData = payload.messageData || {};
+        const textMessage = (
+          messageData.textMessageData?.textMessage ||
+          messageData.extendedTextMessageData?.text ||
+          messageData.caption ||
+          ""
+        ).trim().toLowerCase();
+
+        const chatId = payload.senderData?.chatId;
+        const senderId = payload.senderData?.sender || payload.senderData?.chatId || "";
+        const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Stagiaire";
+        const quotedMessageId = payload.idMessage;
+
+        console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${senderId} / ${chatId}) : "${textMessage}"`);
+
+        // Protection anti-boucle : Ignorer les images et les messages du bot
+        if (payload.messageData?.typeMessage === "imageMessage") {
+          return new Response(JSON.stringify({ success: true, ignored: "imageMessage" }), { headers: CORS_HEADERS });
+        }
+        const isBotMessage = textMessage.includes("planning des urgences pédiatriques") || textMessage.includes("bonsoir l'équipe");
+
+        // Détection du mot-clé court "pln" (ou "planning")
+        const isPlnTrigger = /(?:^|\s|\/|!)(pln|planning)(?:\s|$|[!?.,])/i.test(textMessage);
+
+        if (chatId && !isBotMessage && isPlnTrigger) {
+          // Filtrage des contacts autorisés
+          const envSignatures = (Deno.env.get("AUTHORIZED_WHATSAPP_NUMBERS") || "")
+            .split(",")
+            .map(s => s.trim().replace(/[^0-9]/g, ""))
+            .filter(Boolean);
+
+          const authorizedSignatures = envSignatures.length > 0
+            ? envSignatures
+            : DEFAULT_AUTHORIZED_SIGNATURES;
+
+          const senderDigits = senderId.replace(/[^0-9]/g, "");
+          const isAuthorized = authorizedSignatures.some(sig => senderDigits.endsWith(sig));
+
+          if (!isAuthorized) {
+            console.log(`⛔ Demande 'pln' ignorée : ${senderName} (${senderId}) n'est pas dans la liste des contacts autorisés.`);
+            return new Response(
+              JSON.stringify({ success: true, ignored: "unauthorized_sender", sender: senderId }),
+              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
+
+          // Protection anti-spam par cooldown (20 secondes)
+          const now = Date.now();
+          const lastSent = lastBotReplyByChat.get(chatId) || 0;
+          if (now - lastSent < BOT_COOLDOWN_MS) {
+            console.log(`⏳ [COOLDOWN] Demande 'pln' ignorée dans ${chatId} (${Math.round((now - lastSent) / 1000)}s écoulées sur 20s requises).`);
+            return new Response(
+              JSON.stringify({ success: true, ignored: "cooldown", chatId }),
+              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          }
+          lastBotReplyByChat.set(chatId, now);
+
+          console.log(`🤖 [BOT AUTORISÉ] Commande 'pln' validée pour ${senderName} ! Envoi du planning au chat ${chatId}...`);
+
+          const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
+          const captionText = "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine prochaine est dispo ci-dessous.\n\nBonne semaine à tous !";
+
+          try {
+            const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
+
+            // Tentative 1 : avec citation du message demandeur
+            let sendResp = await fetch(sendFileUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chatId,
+                urlFile: publicImageUrl,
+                fileName: "planning-semaine.png",
+                caption: captionText,
+                quotedMessageId
+              })
+            });
+
+            let sendResult = await sendResp.json().catch(() => ({}));
+
+            // Si échec avec quotedMessageId, repli sans citation
+            if (!sendResp.ok || sendResult.error) {
+              console.warn("Retentative d'envoi sendFileByUrl sans quote...", sendResult);
+              sendResp = await fetch(sendFileUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chatId,
+                  urlFile: publicImageUrl,
+                  fileName: "planning-semaine.png",
+                  caption: captionText
+                })
+              });
+              sendResult = await sendResp.json().catch(() => ({}));
+            }
+
+            console.log("✅ Résultat final Green API sendFileByUrl :", JSON.stringify(sendResult));
+
+            return new Response(
+              JSON.stringify({
+                success: true,
+                botReplied: true,
+                chatId,
+                idMessage: sendResult.idMessage
+              }),
+              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            );
+          } catch (sendErr) {
+            console.error("❌ Erreur expédition image via sendFileByUrl :", sendErr);
+          }
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, processed: true }),
           { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
