@@ -132,7 +132,7 @@ serve(async (req: Request) => {
 
     // D. Endpoint GET pour vérifier les informations du groupe WhatsApp
     if (action === "check_group") {
-      const groupId = url.searchParams.get("groupId") || "120363431125271117@g.us";
+      const groupId = url.searchParams.get("groupId") || "120363426696951541@g.us";
       try {
         const groupRes = await fetch(`${greenHost}/waInstance${greenInstanceId}/getGroupData/${greenApiToken}`, {
           method: "POST",
@@ -153,7 +153,7 @@ serve(async (req: Request) => {
 
     // E. Endpoint GET pour envoyer un message de test direct dans le nouveau groupe
     if (action === "send_test") {
-      const targetGroup = url.searchParams.get("groupId") || "120363431125271117@g.us";
+      const targetGroup = url.searchParams.get("groupId") || "120363426696951541@g.us";
       try {
         const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
         const sendResp = await fetch(sendFileUrl, {
@@ -181,7 +181,7 @@ serve(async (req: Request) => {
     // F. Endpoint GET pour vérifier le statut d'un message
     if (action === "check_msg") {
       const idMessage = url.searchParams.get("id") || "3EB081F434FBF919770E32";
-      const chatId = url.searchParams.get("chatId") || "120363431125271117@g.us";
+      const chatId = url.searchParams.get("chatId") || "120363426696951541@g.us";
       try {
         const msgRes = await fetch(`${greenHost}/waInstance${greenInstanceId}/getMessage/${greenApiToken}`, {
           method: "POST",
