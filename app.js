@@ -2393,18 +2393,6 @@
     const repo = window.APP_CONFIG.GITHUB_REPO || 'STG-welle/rotation-urgences';
     const workflow = window.APP_CONFIG.GITHUB_WORKFLOW_ID || 'weekly-planning-screenshot.yml';
 
-    if (!token) {
-      showToast('Veuillez renseigner votre clé GitHub ci-dessous', 'warning');
-      const panel = document.getElementById('admin-github-token-setup');
-      if (panel) panel.classList.remove('hidden');
-      document.getElementById('admin-github-token-input')?.focus();
-      if (statusBox) {
-        statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-amber-50 border-amber-300 text-amber-950 block';
-        statusBox.textContent = 'Veuillez saisir votre clé GitHub (token) ci-dessous puis cliquer sur Enregistrer.';
-      }
-      return;
-    }
-
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
     btn.classList.add('opacity-75', 'cursor-not-allowed');
@@ -2420,24 +2408,61 @@
       statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-blue-50 border-blue-200 text-blue-900 flex items-center gap-2 block';
       statusBox.innerHTML = `
         <span class="w-2 h-2 rounded-full bg-blue-600 animate-ping"></span>
-        <span>Demande transmise à GitHub Actions. Démarrage de la capture d'écran...</span>
+        <span>Demande transmise au bot. Démarrage de la capture d'écran HD...</span>
       `;
     }
 
     try {
-      const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Accept': 'application/vnd.github.v3+json',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ref: 'main'
-        })
-      });
+      let dispatchOk = false;
 
-      if (res.status === 204 || res.ok) {
+      // 1. Tentative d'abord via l'Edge Function Supabase sécurisée (1-clic direct sans token côté client)
+      try {
+        const edgeRes = await fetch(`${window.APP_CONFIG.SUPABASE_URL}/functions/v1/green-api-webhook?action=trigger_dispatch`, {
+          method: 'POST'
+        });
+        const edgeData = await edgeRes.json().catch(() => ({}));
+        if (edgeRes.ok && edgeData.success) {
+          dispatchOk = true;
+        }
+      } catch (edgeErr) {
+        console.warn('Tentative Edge Function dispatch ignorée, repli direct GitHub...', edgeErr);
+      }
+
+      // 2. Si le webhook serveur n'a pas répondu, repli direct via l'API GitHub avec le token navigateur
+      if (!dispatchOk) {
+        if (!token) {
+          showToast('Veuillez renseigner votre clé GitHub ci-dessous', 'warning');
+          const panel = document.getElementById('admin-github-token-setup');
+          if (panel) panel.classList.remove('hidden');
+          document.getElementById('admin-github-token-input')?.focus();
+          if (statusBox) {
+            statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-amber-50 border-amber-300 text-amber-950 block';
+            statusBox.textContent = 'Veuillez saisir votre clé GitHub (token) ci-dessous puis cliquer sur Enregistrer.';
+          }
+          return;
+        }
+
+        const res = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/vnd.github.v3+json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ref: 'main'
+          })
+        });
+
+        if (res.status === 204 || res.ok) {
+          dispatchOk = true;
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.message || `Erreur HTTP ${res.status}`);
+        }
+      }
+
+      if (dispatchOk) {
         showToast('Bot WhatsApp lancé avec succès !', 'success');
         if (statusBox) {
           statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-emerald-100/90 border-emerald-300 text-emerald-950 block space-y-1';

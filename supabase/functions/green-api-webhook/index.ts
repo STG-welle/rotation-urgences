@@ -128,6 +128,50 @@ serve(async (req: Request) => {
       }
     }
 
+    // Endpoint GET / POST pour déclencher la diffusion immédiate depuis le panel Admin
+    if (action === "trigger_dispatch") {
+      const githubPat = Deno.env.get("GITHUB_PAT") || "";
+      const repo = "STG-welle/rotation-urgences";
+      const workflow = "weekly-planning-screenshot.yml";
+
+      if (!githubPat) {
+        return new Response(JSON.stringify({ error: "GITHUB_PAT non configuré dans Supabase." }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+
+      try {
+        const ghRes = await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${githubPat}`,
+            "User-Agent": "rotation-urgences-supabase",
+            "Accept": "application/vnd.github.v3+json",
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ ref: "main" })
+        });
+
+        if (ghRes.status === 204 || ghRes.ok) {
+          return new Response(JSON.stringify({ success: true, message: "Workflow GitHub Actions déclenché avec succès !" }), {
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+          });
+        } else {
+          const errText = await ghRes.text();
+          return new Response(JSON.stringify({ error: `Erreur GitHub API (${ghRes.status}): ${errText}` }), {
+            status: ghRes.status,
+            headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+          });
+        }
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // B. Endpoint GET pour vérifier les réglages enregistrés sur Green API
     if (action === "settings") {
       try {
