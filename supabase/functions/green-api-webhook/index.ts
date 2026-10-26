@@ -23,13 +23,12 @@ const CORS_HEADERS = {
 const lastBotReplyByChat = new Map<string, number>();
 const BOT_COOLDOWN_MS = 20000;
 
-// Contacts autorisés par défaut (signatures des numéros : derniers chiffres)
+// Contacts autorisés par défaut pour la commande 'pln' (signatures des numéros)
 // Modifiable aussi via variable d'environnement Supabase AUTHORIZED_WHATSAPP_NUMBERS
 const DEFAULT_AUTHORIZED_SIGNATURES = [
-  "7666132",   // Admin (07666132 / 24107666132)
-  "76353912",  // Praise (24176353912)
-  "7927294",   // Zeus (24107927294)
-  "7235223",   // Esther Georda (24107235223)
+  "7102959",   // 24107102959
+  "66651314",  // 24166651314
+  "7666132",   // 24107666132 / +241 07 66 61 32 (Admin)
 ];
 
 serve(async (req: Request) => {
