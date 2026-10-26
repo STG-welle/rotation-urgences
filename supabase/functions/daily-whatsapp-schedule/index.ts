@@ -50,6 +50,137 @@ const MONTHS_FR = [
 
 const GROUP_NAMES = ["Groupe A", "Groupe B", "Groupe C", "Groupe D"];
 
+function mulberry32(a: number) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// 144 séquences canoniques garantissant la visite des 4 salles chaque semaine sans répétition consécutive
+const VALID_ROOM_SEQUENCES: number[][] = [];
+for (let s0 = 0; s0 < 4; s0++) {
+  for (let s1 = 0; s1 < 4; s1++) {
+    if (s1 === s0) continue;
+    for (let s2 = 0; s2 < 4; s2++) {
+      if (s2 === s1) continue;
+      for (let s3 = 0; s3 < 4; s3++) {
+        if (s3 === s2) continue;
+        for (let s4 = 0; s4 < 4; s4++) {
+          if (s4 === s3) continue;
+          if (new Set([s0, s1, s2, s3, s4]).size === 4) {
+            VALID_ROOM_SEQUENCES.push([s0, s1, s2, s3, s4]);
+          }
+        }
+      }
+    }
+  }
+}
+
+const weeklyScheduleCache = new Map<string, number[][]>();
+
+function getDeterministicWeeklySchedule(N: number, weekNumber: number): number[][] {
+  if (N === 0) return [];
+  if (N < 4) {
+    const res: number[][] = [];
+    for (let i = 0; i < N; i++) {
+      res.push([(i + 0) % 4, (i + 1) % 4, (i + 2) % 4, (i + 3) % 4, (i + 1) % 4]);
+    }
+    return res;
+  }
+
+  const cacheKey = `${N}_${weekNumber}`;
+  if (weeklyScheduleCache.has(cacheKey)) {
+    return weeklyScheduleCache.get(cacheKey)!;
+  }
+
+  const minCap = Math.floor(N / 4);
+  const maxCap = Math.ceil(N / 4);
+  const seed = (Math.abs(weekNumber) * 7919 + N * 104729 + 12345) >>> 0;
+  const rand = mulberry32(seed);
+
+  let bestSeqs: number[][] | null = null;
+  let bestScore = Infinity;
+
+  for (let trial = 0; trial < 3000; trial++) {
+    const chosen: number[][] = [];
+    const counts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
+
+    const shuffled = [...VALID_ROOM_SEQUENCES];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      const tmp = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = tmp;
+    }
+
+    for (const seq of shuffled) {
+      if (chosen.length === N) break;
+      let canAdd = true;
+      for (let d = 0; d < 5; d++) {
+        if (counts[d][seq[d]] >= maxCap) {
+          canAdd = false;
+          break;
+        }
+      }
+      if (canAdd) {
+        chosen.push(seq);
+        for (let d = 0; d < 5; d++) counts[d][seq[d]]++;
+      }
+    }
+
+    if (chosen.length === N) {
+      let valid = true;
+      for (let d = 0; d < 5; d++) {
+        for (let r = 0; r < 4; r++) {
+          if (counts[d][r] < minCap || counts[d][r] > maxCap) {
+            valid = false;
+            break;
+          }
+        }
+        if (!valid) break;
+      }
+      if (!valid) continue;
+
+      let pairRepetitions = 0;
+      for (let i = 0; i < N; i++) {
+        for (let j = i + 1; j < N; j++) {
+          let sameRoom = 0;
+          for (let d = 0; d < 5; d++) {
+            if (chosen[i][d] === chosen[j][d]) sameRoom++;
+          }
+          if (sameRoom > 1) pairRepetitions += (sameRoom - 1);
+        }
+      }
+
+      if (pairRepetitions < bestScore) {
+        bestScore = pairRepetitions;
+        bestSeqs = chosen;
+        if (bestScore === 0) break;
+      }
+    }
+  }
+
+  if (!bestSeqs) {
+    bestSeqs = [];
+    for (let i = 0; i < N; i++) {
+      const shift = ((weekNumber * 2) % 4 + 4) % 4;
+      bestSeqs.push([
+        (i + shift + 0) % 4,
+        (i + shift + 1) % 4,
+        (i + shift + 2) % 4,
+        (i + shift + 3) % 4,
+        (i + shift + 1) % 4
+      ]);
+    }
+  }
+
+  weeklyScheduleCache.set(cacheKey, bestSeqs);
+  return bestSeqs;
+}
+
 serve(async (req: Request) => {
   // Gestion CORS pour les tests depuis le navigateur
   if (req.method === "OPTIONS") {
@@ -214,58 +345,18 @@ serve(async (req: Request) => {
     // social golfer / tournoi harmonique 7 jours garantissant 0 répétitions consécutives de salle ou de binôme
     const workDayIndex = weekIndex * 5 + dayIndex;
 
-    const SCHEDULE_7 = [
-      [[7, 0], [1, 6], [2, 5], [3, 4]],
-      [[4, 5], [2, 0], [3, 6], [7, 1]],
-      [[0, 3], [7, 5], [1, 2], [6, 4]],
-      [[5, 6], [3, 1], [4, 0], [7, 2]],
-      [[4, 2], [6, 0], [7, 3], [5, 1]],
-      [[5, 3], [7, 4], [0, 1], [6, 2]],
-      [[1, 4], [2, 3], [7, 6], [0, 5]]
-    ];
-
-    function gcd(a: number, b: number): number {
-      while (b) {
-        const t = b;
-        b = a % b;
-        a = t;
-      }
-      return a;
-    }
-
     function getDailyRoomAssignments(activeStudents: Array<typeof stagiaires[0]>, wIdx: number) {
       const N = activeStudents.length;
       if (N === 0) return [[], [], [], []];
 
-      if (N === 8) {
-        const roundIdx = ((wIdx % 7) + 7) % 7;
-        const round = SCHEDULE_7[roundIdx];
-        return round.map((pair) => pair.map((idx) => activeStudents[idx]));
-      }
+      const wNum = Math.floor(wIdx / 5);
+      const dIdx = ((wIdx % 5) + 5) % 5;
 
-      const baseCap = Math.floor(N / 4);
-      const remainder = N % 4;
-      const roomCaps = [0, 1, 2, 3].map((r) => baseCap + (r < remainder ? 1 : 0));
-
-      let step = 3;
-      while (gcd(step, N) !== 1 && step < N) step++;
-      if (step >= N) step = 1;
-
-      const offset = ((wIdx * 3) % N + N) % N;
-      const perm: Array<typeof stagiaires[0]> = [];
-      for (let i = 0; i < N; i++) {
-        perm.push(activeStudents[(offset + i * step) % N]);
-      }
-
-      const roomShift = ((wIdx % 4) + 4) % 4;
-      const shiftedCaps = [0, 1, 2, 3].map((r) => roomCaps[(r - roomShift + 4) % 4]);
-
+      const weeklyMatrix = getDeterministicWeeklySchedule(N, wNum);
       const assignment: Array<Array<typeof stagiaires[0]>> = [[], [], [], []];
-      let p = 0;
-      for (let r = 0; r < 4; r++) {
-        for (let c = 0; c < shiftedCaps[r]; c++) {
-          if (p < N) assignment[r].push(perm[p++]);
-        }
+      for (let i = 0; i < N; i++) {
+        const roomIdx = weeklyMatrix[i] ? weeklyMatrix[i][dIdx] : (i % 4);
+        assignment[roomIdx].push(activeStudents[i]);
       }
       return assignment;
     }

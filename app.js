@@ -361,69 +361,162 @@
   }
 
   // ============================================================================
-  // BRASSAGE DYNAMIQUE QUOTIDIEN DES BINÔMES (Social Golfer / Tournoi Harmonique)
-  // Permet à tous les stagiaires de changer de binôme et de salle chaque jour,
-  // et de travailler avec TOUS les membres de l'équipe au cours du mois.
-  // Propriétés mathématiques vérifiées :
-  // 1. Zéro répétition de salle consécutive (aucun stagiaire dans la même salle 2 jours de suite)
-  // 2. Zéro répétition de binôme consécutive (aucun stagiaire avec le même collègue 2 jours de suite)
-  // 3. Toutes les paires se rencontrent équitablement au moins une fois par semaine / 2 à 3 fois par mois
+  // BRASSAGE DYNAMIQUE & COUVERTURE DES 4 SALLES
+  // Garanties mathématiques absolues :
+  // 1. 100% des stagiaires visitent les 4 SALLES (Triage, Piquage, Déchocage, Obs) chaque semaine
+  // 2. ZÉRO répétition consécutive : aucun stagiaire n'est dans la même salle 2 jours de suite
+  // 3. Capacités de salles équilibrées chaque jour (Math.floor(N/4) à Math.ceil(N/4))
+  // 4. Brassage et rotation des binômes optimisés d'une semaine sur l'autre
   // ============================================================================
-  const SCHEDULE_7 = [
-    [[7, 0], [1, 6], [2, 5], [3, 4]], // Tour 0 : Triage [7,0], Piquage [1,6], Déchoc [2,5], Obs [3,4]
-    [[4, 5], [2, 0], [3, 6], [7, 1]], // Tour 1
-    [[0, 3], [7, 5], [1, 2], [6, 4]], // Tour 2
-    [[5, 6], [3, 1], [4, 0], [7, 2]], // Tour 3
-    [[4, 2], [6, 0], [7, 3], [5, 1]], // Tour 4
-    [[5, 3], [7, 4], [0, 1], [6, 2]], // Tour 5
-    [[1, 4], [2, 3], [7, 6], [0, 5]]  // Tour 6
-  ];
+  function mulberry32(a) {
+    return function() {
+      var t = a += 0x6D2B79F5;
+      t = Math.imul(t ^ t >>> 15, t | 1);
+      t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
 
-  function gcd(a, b) {
-    while (b) {
-      const t = b;
-      b = a % b;
-      a = t;
+  // 144 séquences canoniques individuelles couvrant obligatoirement les 4 salles sans répétition consécutive
+  const VALID_ROOM_SEQUENCES = [];
+  for (let s0 = 0; s0 < 4; s0++) {
+    for (let s1 = 0; s1 < 4; s1++) {
+      if (s1 === s0) continue;
+      for (let s2 = 0; s2 < 4; s2++) {
+        if (s2 === s1) continue;
+        for (let s3 = 0; s3 < 4; s3++) {
+          if (s3 === s2) continue;
+          for (let s4 = 0; s4 < 4; s4++) {
+            if (s4 === s3) continue;
+            if (new Set([s0, s1, s2, s3, s4]).size === 4) {
+              VALID_ROOM_SEQUENCES.push([s0, s1, s2, s3, s4]);
+            }
+          }
+        }
+      }
     }
-    return a;
+  }
+
+  const weeklyScheduleCache = new Map();
+
+  function getDeterministicWeeklySchedule(N, weekNumber) {
+    if (N === 0) return [];
+    if (N < 4) {
+      const res = [];
+      for (let i = 0; i < N; i++) {
+        res.push([
+          (i + 0) % 4,
+          (i + 1) % 4,
+          (i + 2) % 4,
+          (i + 3) % 4,
+          (i + 1) % 4
+        ]);
+      }
+      return res;
+    }
+
+    const cacheKey = `${N}_${weekNumber}`;
+    if (weeklyScheduleCache.has(cacheKey)) {
+      return weeklyScheduleCache.get(cacheKey);
+    }
+
+    const minCap = Math.floor(N / 4);
+    const maxCap = Math.ceil(N / 4);
+    const seed = (Math.abs(weekNumber) * 7919 + N * 104729 + 12345) >>> 0;
+    const rand = mulberry32(seed);
+
+    let bestSeqs = null;
+    let bestScore = Infinity;
+
+    for (let trial = 0; trial < 3000; trial++) {
+      const chosen = [];
+      const counts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
+
+      const shuffled = [...VALID_ROOM_SEQUENCES];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(rand() * (i + 1));
+        const tmp = shuffled[i];
+        shuffled[i] = shuffled[j];
+        shuffled[j] = tmp;
+      }
+
+      for (const seq of shuffled) {
+        if (chosen.length === N) break;
+        let canAdd = true;
+        for (let d = 0; d < 5; d++) {
+          if (counts[d][seq[d]] >= maxCap) {
+            canAdd = false;
+            break;
+          }
+        }
+        if (canAdd) {
+          chosen.push(seq);
+          for (let d = 0; d < 5; d++) counts[d][seq[d]]++;
+        }
+      }
+
+      if (chosen.length === N) {
+        let valid = true;
+        for (let d = 0; d < 5; d++) {
+          for (let r = 0; r < 4; r++) {
+            if (counts[d][r] < minCap || counts[d][r] > maxCap) {
+              valid = false;
+              break;
+            }
+          }
+          if (!valid) break;
+        }
+        if (!valid) continue;
+
+        let pairRepetitions = 0;
+        for (let i = 0; i < N; i++) {
+          for (let j = i + 1; j < N; j++) {
+            let sameRoom = 0;
+            for (let d = 0; d < 5; d++) {
+              if (chosen[i][d] === chosen[j][d]) sameRoom++;
+            }
+            if (sameRoom > 1) pairRepetitions += (sameRoom - 1);
+          }
+        }
+
+        if (pairRepetitions < bestScore) {
+          bestScore = pairRepetitions;
+          bestSeqs = chosen;
+          if (bestScore === 0) break;
+        }
+      }
+    }
+
+    if (!bestSeqs) {
+      bestSeqs = [];
+      for (let i = 0; i < N; i++) {
+        const shift = ((weekNumber * 2) % 4 + 4) % 4;
+        bestSeqs.push([
+          (i + shift + 0) % 4,
+          (i + shift + 1) % 4,
+          (i + shift + 2) % 4,
+          (i + shift + 3) % 4,
+          (i + shift + 1) % 4
+        ]);
+      }
+    }
+
+    weeklyScheduleCache.set(cacheKey, bestSeqs);
+    return bestSeqs;
   }
 
   function getDailyRoomAssignments(activeStudents, workDayIndex) {
     const N = activeStudents.length;
     if (N === 0) return [[], [], [], []];
 
-    // Pour l'effectif standard de 8 stagiaires (2 par salle) :
-    // Utilise la matrice optimale canonique vérifiée
-    if (N === 8) {
-      const roundIdx = ((workDayIndex % 7) + 7) % 7;
-      const round = SCHEDULE_7[roundIdx];
-      return round.map((pair) => pair.map((idx) => activeStudents[idx]));
-    }
+    const weekNumber = Math.floor(workDayIndex / 5);
+    const dayIndex = ((workDayIndex % 5) + 5) % 5;
 
-    // Répartition adaptative pour tout autre effectif (N != 8)
-    const baseCap = Math.floor(N / 4);
-    const remainder = N % 4;
-    const roomCaps = [0, 1, 2, 3].map((r) => baseCap + (r < remainder ? 1 : 0));
-
-    let step = 3;
-    while (gcd(step, N) !== 1 && step < N) step++;
-    if (step >= N) step = 1;
-
-    const offset = ((workDayIndex * 3) % N + N) % N;
-    const perm = [];
-    for (let i = 0; i < N; i++) {
-      perm.push(activeStudents[(offset + i * step) % N]);
-    }
-
-    const roomShift = ((workDayIndex % 4) + 4) % 4;
-    const shiftedCaps = [0, 1, 2, 3].map((r) => roomCaps[(r - roomShift + 4) % 4]);
-
+    const weeklyMatrix = getDeterministicWeeklySchedule(N, weekNumber);
     const assignment = [[], [], [], []];
-    let p = 0;
-    for (let r = 0; r < 4; r++) {
-      for (let c = 0; c < shiftedCaps[r]; c++) {
-        if (p < N) assignment[r].push(perm[p++]);
-      }
+    for (let i = 0; i < N; i++) {
+      const roomIdx = weeklyMatrix[i] ? weeklyMatrix[i][dayIndex] : (i % 4);
+      assignment[roomIdx].push(activeStudents[i]);
     }
     return assignment;
   }
