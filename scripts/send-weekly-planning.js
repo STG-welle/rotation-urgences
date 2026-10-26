@@ -112,10 +112,7 @@ async function main() {
   const fileBuffer = fs.readFileSync(outputPath);
   const fileBlob = new Blob([fileBuffer], { type: 'image/png' });
 
-  const isSunday = (new Date()).getDay() === 0;
-  const defaultCaption = isSunday
-    ? "📅 Bonsoir à tous ! Voici le planning de rotation des salles (Équipe 1 & Équipe 2) pour la semaine prochaine."
-    : "📢 Mise à jour du planning : voici la version actualisée pour cette semaine !";
+  const defaultCaption = "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine pro est dispo ci-dessous.\n\nBonne semaine à tous et bon courage !";
 
   const captionText = process.env.WHATSAPP_CAPTION || defaultCaption;
 
