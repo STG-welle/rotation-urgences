@@ -20,7 +20,7 @@ async function main() {
   // 1. Récupération des variables d'environnement
   const instanceId = process.env.GREEN_API_INSTANCE_ID;
   const apiToken = process.env.GREEN_API_TOKEN;
-  const chatId = process.env.WHATSAPP_CHAT_ID;
+  const chatId = process.env.WHATSAPP_CHAT_ID || '120363431125271117@g.us';
   const host = process.env.GREEN_API_HOST || 'https://7107.api.greenapi.com';
   const siteUrl = process.env.SITE_URL || 'https://stg-welle.github.io/rotation-urgences/';
 

@@ -7,6 +7,9 @@
     "test": "node test_daily_rotation.js"
   },
   "dependencies": {
-    "playwright": "^1.49.1"
+    "libsodium-wrappers": "^0.8.4",
+    "playwright": "^1.49.1",
+    "tweetnacl": "^1.0.3",
+    "tweetnacl-util": "^0.15.1"
   }
 }
