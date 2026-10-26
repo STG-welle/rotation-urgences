@@ -61,6 +61,7 @@ function mulberry32(a: number) {
 
 // 144 séquences canoniques garantissant la visite des 4 salles chaque semaine sans répétition consécutive
 const VALID_ROOM_SEQUENCES: number[][] = [];
+const SEQS_BY_DUP: number[][][] = [[], [], [], []];
 for (let s0 = 0; s0 < 4; s0++) {
   for (let s1 = 0; s1 < 4; s1++) {
     if (s1 === s0) continue;
@@ -71,7 +72,12 @@ for (let s0 = 0; s0 < 4; s0++) {
         for (let s4 = 0; s4 < 4; s4++) {
           if (s4 === s3) continue;
           if (new Set([s0, s1, s2, s3, s4]).size === 4) {
-            VALID_ROOM_SEQUENCES.push([s0, s1, s2, s3, s4]);
+            const seq = [s0, s1, s2, s3, s4];
+            const counts = [0, 0, 0, 0];
+            seq.forEach((r) => counts[r]++);
+            const dupRoom = counts.findIndex((c) => c === 2);
+            VALID_ROOM_SEQUENCES.push(seq);
+            SEQS_BY_DUP[dupRoom].push(seq);
           }
         }
       }
@@ -101,78 +107,100 @@ function getDeterministicWeeklySchedule(N: number, weekNumber: number): number[]
   const seed = (Math.abs(weekNumber) * 7919 + N * 104729 + 12345) >>> 0;
   const rand = mulberry32(seed);
 
+  // Rotation mensuelle stricte de la salle doublée :
+  // Chaque semaine (w = 0, 1, 2, 3), l'étudiant i double une salle différente (i + w) % 4.
+  // Sur 4 semaines (20 jours), chaque étudiant fait EXACTEMENT 5 jours par salle (5 Triage, 5 Piquage, 5 Déchocage, 5 Obs) !
+  const targetDups: number[] = [];
+  for (let i = 0; i < N; i++) {
+    targetDups.push(((i + weekNumber) % 4 + 4) % 4);
+  }
+
   let bestSeqs: number[][] | null = null;
   let bestScore = Infinity;
 
   for (let trial = 0; trial < 3000; trial++) {
     const chosen: number[][] = [];
     const counts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
+    let possible = true;
 
-    const shuffled = [...VALID_ROOM_SEQUENCES];
-    for (let i = shuffled.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      const tmp = shuffled[i];
-      shuffled[i] = shuffled[j];
-      shuffled[j] = tmp;
-    }
+    for (let i = 0; i < N; i++) {
+      const targetRoom = targetDups[i];
+      const pool = SEQS_BY_DUP[targetRoom];
 
-    for (const seq of shuffled) {
-      if (chosen.length === N) break;
-      let canAdd = true;
-      for (let d = 0; d < 5; d++) {
-        if (counts[d][seq[d]] >= maxCap) {
-          canAdd = false;
-          break;
-        }
+      const cands = [...pool];
+      for (let k = cands.length - 1; k > 0; k--) {
+        const j = Math.floor(rand() * (k + 1));
+        const tmp = cands[k];
+        cands[k] = cands[j];
+        cands[j] = tmp;
       }
-      if (canAdd) {
-        chosen.push(seq);
-        for (let d = 0; d < 5; d++) counts[d][seq[d]]++;
-      }
-    }
 
-    if (chosen.length === N) {
-      let valid = true;
-      for (let d = 0; d < 5; d++) {
-        for (let r = 0; r < 4; r++) {
-          if (counts[d][r] < minCap || counts[d][r] > maxCap) {
-            valid = false;
+      let picked: number[] | null = null;
+      for (const seq of cands) {
+        let canAdd = true;
+        for (let d = 0; d < 5; d++) {
+          if (counts[d][seq[d]] >= maxCap) {
+            canAdd = false;
             break;
           }
         }
-        if (!valid) break;
-      }
-      if (!valid) continue;
-
-      let pairRepetitions = 0;
-      for (let i = 0; i < N; i++) {
-        for (let j = i + 1; j < N; j++) {
-          let sameRoom = 0;
-          for (let d = 0; d < 5; d++) {
-            if (chosen[i][d] === chosen[j][d]) sameRoom++;
-          }
-          if (sameRoom > 1) pairRepetitions += (sameRoom - 1);
+        if (canAdd) {
+          picked = seq;
+          break;
         }
       }
 
-      if (pairRepetitions < bestScore) {
-        bestScore = pairRepetitions;
-        bestSeqs = chosen;
-        if (bestScore === 0) break;
+      if (!picked) {
+        possible = false;
+        break;
       }
+
+      chosen.push(picked);
+      for (let d = 0; d < 5; d++) counts[d][picked[d]]++;
+    }
+
+    if (!possible || chosen.length !== N) continue;
+
+    let valid = true;
+    for (let d = 0; d < 5; d++) {
+      for (let r = 0; r < 4; r++) {
+        if (counts[d][r] < minCap || counts[d][r] > maxCap) {
+          valid = false;
+          break;
+        }
+      }
+      if (!valid) break;
+    }
+    if (!valid) continue;
+
+    let pairRepetitions = 0;
+    for (let i = 0; i < N; i++) {
+      for (let j = i + 1; j < N; j++) {
+        let sameRoom = 0;
+        for (let d = 0; d < 5; d++) {
+          if (chosen[i][d] === chosen[j][d]) sameRoom++;
+        }
+        if (sameRoom > 1) pairRepetitions += (sameRoom - 1);
+      }
+    }
+
+    if (pairRepetitions < bestScore) {
+      bestScore = pairRepetitions;
+      bestSeqs = chosen;
+      if (bestScore === 0) break;
     }
   }
 
   if (!bestSeqs) {
     bestSeqs = [];
     for (let i = 0; i < N; i++) {
-      const shift = ((weekNumber * 2) % 4 + 4) % 4;
+      const d = targetDups[i];
       bestSeqs.push([
-        (i + shift + 0) % 4,
-        (i + shift + 1) % 4,
-        (i + shift + 2) % 4,
-        (i + shift + 3) % 4,
-        (i + shift + 1) % 4
+        d,
+        (d + 1) % 4,
+        (d + 2) % 4,
+        (d + 3) % 4,
+        d
       ]);
     }
   }
