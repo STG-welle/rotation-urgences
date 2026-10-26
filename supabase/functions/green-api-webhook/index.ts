@@ -104,6 +104,30 @@ serve(async (req: Request) => {
       return Response.redirect("https://stg-welle.github.io/rotation-urgences/qr.html", 302);
     }
 
+    // Test de notification Telegram
+    if (action === "test_telegram") {
+      try {
+        const testRes = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chat_id: telegramChatId,
+            text: "🟢 *Surveillance WhatsApp Active*\n\nLe Bot Telegram est parfaitement opérationnel. En cas de déconnexion de l'instance Green API, vous recevrez ici une alerte immédiate avec le QR Code de reconnexion.",
+            parse_mode: "Markdown"
+          })
+        });
+        const testData = await testRes.json();
+        return new Response(JSON.stringify(testData, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // B. Endpoint GET pour vérifier les réglages enregistrés sur Green API
     if (action === "settings") {
       try {
