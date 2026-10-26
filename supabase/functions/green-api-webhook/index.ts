@@ -163,7 +163,7 @@ serve(async (req: Request) => {
             chatId: targetGroup,
             urlFile: "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png",
             fileName: "planning-semaine.png",
-            caption: "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine pro est dispo ci-dessous.\n\nBonne semaine à tous et bon courage !"
+            caption: "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine prochaine est dispo ci-dessous.\n\nBonne semaine à tous !"
           })
         });
         const sendData = await sendResp.json();

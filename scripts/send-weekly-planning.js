@@ -112,7 +112,7 @@ async function main() {
   const fileBuffer = fs.readFileSync(outputPath);
   const fileBlob = new Blob([fileBuffer], { type: 'image/png' });
 
-  const defaultCaption = "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine pro est dispo ci-dessous.\n\nBonne semaine à tous et bon courage !";
+  const defaultCaption = "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine prochaine est dispo ci-dessous.\n\nBonne semaine à tous !";
 
   const captionText = process.env.WHATSAPP_CAPTION || defaultCaption;
 
