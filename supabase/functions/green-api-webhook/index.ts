@@ -445,7 +445,7 @@ serve(async (req: Request) => {
         if (payload.messageData?.typeMessage === "imageMessage") {
           return new Response(JSON.stringify({ success: true, ignored: "imageMessage" }), { headers: CORS_HEADERS });
         }
-        const isBotMessage = textMessage.includes("planning des urgences pédiatriques") || textMessage.includes("bonsoir l'équipe");
+        const isBotMessage = textMessage.includes("planning des urgences pédiatriques") || textMessage.includes("bonsoir l'équipe") || textMessage.includes("voici de nouveau");
 
         // Détection du mot-clé court "pln" (ou "planning")
         const isPlnTrigger = /(?:^|\s|\/|!)(pln|planning)(?:\s|$|[!?.,])/i.test(textMessage);
@@ -487,7 +487,7 @@ serve(async (req: Request) => {
           console.log(`🤖 [BOT AUTORISÉ] Commande 'pln' validée pour ${senderName} ! Envoi du planning au chat ${chatId}...`);
 
           const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
-          const captionText = "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine prochaine est dispo ci-dessous.\n\nBonne semaine à tous !";
+          const captionText = "Salut ! Voici de nouveau le planning des urgences pédiatriques de la semaine.\n\nBonne semaine !";
 
           try {
             const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
