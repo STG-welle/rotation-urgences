@@ -107,19 +107,19 @@ serve(async (req: Request) => {
       }
     }
 
-    // C. Endpoint GET pour activer le Bot Répondeur sur Green API (incoming + outgoing)
-    if (action === "enable_bot") {
+    // C. Endpoint GET pour désactiver l'écoute des messages sur Green API
+    if (action === "disable_incoming") {
       try {
         const setResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/setSettings/${greenApiToken}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
-            incomingWebhook: "yes",
-            outgoingMessageWebhook: "yes" 
+            incomingWebhook: "no",
+            outgoingMessageWebhook: "no" 
           })
         });
         const setData = await setResp.json();
-        return new Response(JSON.stringify({ success: true, message: "Bot activé sur Green API (entrant + sortant) !", result: setData }, null, 2), {
+        return new Response(JSON.stringify({ success: true, message: "Écoute des messages désactivée sur Green API !", result: setData }, null, 2), {
           headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
         });
       } catch (e) {
@@ -246,112 +246,6 @@ serve(async (req: Request) => {
             stateInstance,
             alertTriggered: isCritical
           }),
-          { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-        );
-      }
-
-      // 2. Traitement des messages : Bot Répondeur Interactif (mot-clé "planning")
-      // Gère les messages des stagiaires (incomingMessageReceived) ET de l'admin (outgoingMessageReceived)
-      if (typeWebhook === "incomingMessageReceived" || typeWebhook === "outgoingMessageReceived") {
-        const messageData = payload.messageData || {};
-        const textMessage = (
-          messageData.textMessageData?.textMessage ||
-          messageData.extendedTextMessageData?.text ||
-          messageData.caption ||
-          ""
-        ).trim().toLowerCase();
-
-        const chatId = payload.senderData?.chatId;
-        const senderId = payload.senderData?.sender || payload.senderData?.chatId || "";
-        const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Stagiaire";
-        const quotedMessageId = payload.idMessage;
-
-        console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${senderId} / ${chatId}) : "${textMessage}"`);
-
-        // Protection anti-boucle : Ignorer les images et les messages du bot
-        if (payload.messageData?.typeMessage === "imageMessage") {
-          return new Response(JSON.stringify({ success: true, ignored: "imageMessage" }), { headers: CORS_HEADERS });
-        }
-        const isBotMessage = textMessage.includes("rappel : voici à nouveau") || textMessage.includes("bonsoir à tous");
-
-        // Détection du mot "planning"
-        if (chatId && !isBotMessage && /\bplanning\b/i.test(textMessage)) {
-          // Filtrage strict : seuls l'Admin et les délégués désignés peuvent déclencher le bot
-          const authorizedSignatures = [
-            "7666132",   // Admin (07666132 / 24107666132)
-            "76353912",  // Praise (24176353912)
-            "7927294",   // Zeus (24107927294)
-            "7235223",   // Esther Georda (24107235223)
-          ];
-
-          const senderDigits = senderId.replace(/[^0-9]/g, "");
-          const isAuthorized = authorizedSignatures.some(sig => senderDigits.endsWith(sig));
-
-          if (!isAuthorized) {
-            console.log(`⛔ Demande ignorée : ${senderName} (${senderId}) n'est pas autorisé à appeler le bot.`);
-            return new Response(
-              JSON.stringify({ success: true, ignored: "unauthorized_sender", sender: senderId }),
-              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-            );
-          }
-
-          console.log(`🤖 [BOT AUTORISÉ] Demande de ${senderName} validée ! Envoi de l'image de rappel au chat ${chatId}...`);
-
-          const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
-          const captionText = `📋 *Rappel : Voici à nouveau le planning de rotation de la semaine.*`;
-
-          try {
-            const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
-            
-            // Tentative 1 : avec citation du message
-            let sendResp = await fetch(sendFileUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chatId,
-                urlFile: publicImageUrl,
-                fileName: "planning-semaine.png",
-                caption: captionText,
-                quotedMessageId
-              })
-            });
-
-            let sendResult = await sendResp.json().catch(() => ({}));
-
-            // Si échec avec quotedMessageId (arrive parfois sur messages sortants du téléphone), repli sans citation
-            if (!sendResp.ok || sendResult.error) {
-              console.warn("Retentative d'envoi sendFileByUrl sans quote...", sendResult);
-              sendResp = await fetch(sendFileUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chatId,
-                  urlFile: publicImageUrl,
-                  fileName: "planning-semaine.png",
-                  caption: captionText
-                })
-              });
-              sendResult = await sendResp.json().catch(() => ({}));
-            }
-
-            console.log("✅ Résultat final Green API sendFileByUrl :", JSON.stringify(sendResult));
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                botReplied: true,
-                chatId,
-                idMessage: sendResult.idMessage
-              }),
-              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-            );
-          } catch (sendErr) {
-            console.error("❌ Erreur expédition image via sendFileByUrl :", sendErr);
-          }
-        }
-
-        return new Response(
-          JSON.stringify({ success: true, processed: true }),
           { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
         );
       }
