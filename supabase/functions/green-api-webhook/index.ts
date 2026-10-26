@@ -130,7 +130,75 @@ serve(async (req: Request) => {
       }
     }
 
-    // C. Endpoint GET statut JSON et synchronisation DB
+    // D. Endpoint GET pour vérifier les informations du groupe WhatsApp
+    if (action === "check_group") {
+      const groupId = url.searchParams.get("groupId") || "120363431125271117@g.us";
+      try {
+        const groupRes = await fetch(`${greenHost}/waInstance${greenInstanceId}/getGroupData/${greenApiToken}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ groupId })
+        });
+        const groupData = await groupRes.json();
+        return new Response(JSON.stringify(groupData, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // E. Endpoint GET pour envoyer un message de test direct dans le nouveau groupe
+    if (action === "send_test") {
+      const targetGroup = url.searchParams.get("groupId") || "120363431125271117@g.us";
+      try {
+        const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
+        const sendResp = await fetch(sendFileUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            chatId: targetGroup,
+            urlFile: "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png",
+            fileName: "planning-semaine.png",
+            caption: "📅 Bonsoir à tous ! Voici le planning officiel des Urgences Pédiatriques pour cette semaine."
+          })
+        });
+        const sendData = await sendResp.json();
+        return new Response(JSON.stringify(sendData, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
+    // F. Endpoint GET pour vérifier le statut d'un message
+    if (action === "check_msg") {
+      const idMessage = url.searchParams.get("id") || "3EB081F434FBF919770E32";
+      const chatId = url.searchParams.get("chatId") || "120363431125271117@g.us";
+      try {
+        const msgRes = await fetch(`${greenHost}/waInstance${greenInstanceId}/getMessage/${greenApiToken}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ chatId, idMessage })
+        });
+        const msgData = await msgRes.json();
+        return new Response(JSON.stringify(msgData, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
     try {
       const stateResp = await fetch(`${greenHost}/waInstance${greenInstanceId}/getStateInstance/${greenApiToken}`);
       const stateData = await stateResp.json();
