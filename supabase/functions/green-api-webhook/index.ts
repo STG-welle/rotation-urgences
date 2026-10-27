@@ -12,6 +12,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.8";
+import { PDFDocument, rgb, StandardFonts } from "https://esm.sh/pdf-lib@1.17.1";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -313,6 +314,25 @@ serve(async (req: Request) => {
       }
     }
 
+    // E3. Endpoint GET pour visualiser/télécharger le PDF officiel de bilan
+    if (action === "bilan_pdf") {
+      try {
+        const { bytes, fileName } = await generateBilanPdf(supabase);
+        return new Response(bytes, {
+          headers: {
+            ...CORS_HEADERS,
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="${fileName}"`
+          }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // F. Endpoint GET pour vérifier le statut d'un message
     if (action === "check_msg") {
       const idMessage = url.searchParams.get("id") || "3EB081F434FBF919770E32";
@@ -534,50 +554,77 @@ serve(async (req: Request) => {
           }
           lastBotReplyByChat.set(chatId, now);
 
-          // CAS 1 : COMMANDE "bln" (Bilan d'émargement en cours)
+          // CAS 1 : COMMANDE "bln" (Génération & Envoi du Document PDF Officiel)
           if (isBlnTrigger) {
-            console.log(`🤖 [BOT AUTORISÉ] Commande 'bln' reçue de ${senderName} ! Génération du bilan...`);
-            const bilanMessage = await buildBilanMessage(supabase);
-            const sendMsgUrl = `${greenHost}/waInstance${greenInstanceId}/sendMessage/${greenApiToken}`;
-
+            console.log(`🤖 [BOT AUTORISÉ] Commande 'bln' reçue de ${senderName} ! Génération du PDF officiel...`);
             try {
-              let sendResp = await fetch(sendMsgUrl, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  chatId,
-                  message: bilanMessage,
-                  quotedMessageId
-                })
-              });
+              const { bytes, fileName, stats } = await generateBilanPdf(supabase);
+              const sendUploadUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUpload/${greenApiToken}`;
+              const blob = new Blob([bytes], { type: "application/pdf" });
 
+              const caption = `🏥 *CHUL • URGENCES PÉDIATRIQUES*\n` +
+                `📊 *Bilan d'Émargement & Assiduité (Officiel)*\n\n` +
+                `📈 *Assiduité globale du service : ${stats.globalRate}%*\n` +
+                `📝 *Séances d'émargement : ${stats.sessionsCount}*\n` +
+                `👥 *Stagiaires actifs : ${stats.stagiairesCount}*\n` +
+                `⚠️ *Cumul du mois : ${stats.totalAbsents} absence(s) • ⏱ ${stats.totalRetards} retard(s)*\n\n` +
+                `📄 _Veuillez trouver ci-joint le document PDF officiel certifié pour le service._`;
+
+              // Tentative 1 : avec quote
+              const formWithQuote = new FormData();
+              formWithQuote.append("chatId", chatId);
+              formWithQuote.append("fileName", fileName);
+              formWithQuote.append("caption", caption);
+              if (quotedMessageId) formWithQuote.append("quotedMessageId", quotedMessageId);
+              formWithQuote.append("file", blob, fileName);
+
+              let sendResp = await fetch(sendUploadUrl, {
+                method: "POST",
+                body: formWithQuote
+              });
               let sendResult = await sendResp.json().catch(() => ({}));
+
               if (!sendResp.ok || sendResult.error) {
-                console.warn("Retentative d'envoi sendMessage sans quote...", sendResult);
-                sendResp = await fetch(sendMsgUrl, {
+                console.warn("Retentative d'envoi PDF sans quote...", sendResult);
+                const formNoQuote = new FormData();
+                formNoQuote.append("chatId", chatId);
+                formNoQuote.append("fileName", fileName);
+                formNoQuote.append("caption", caption);
+                formNoQuote.append("file", blob, fileName);
+
+                sendResp = await fetch(sendUploadUrl, {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chatId,
-                    message: bilanMessage
-                  })
+                  body: formNoQuote
                 });
                 sendResult = await sendResp.json().catch(() => ({}));
               }
 
-              console.log("✅ Résultat Green API sendMessage (bln) :", JSON.stringify(sendResult));
+              console.log("✅ Résultat Green API sendFileByUpload (PDF) :", JSON.stringify(sendResult));
 
               return new Response(
                 JSON.stringify({
                   success: true,
                   command: "bln",
+                  format: "pdf",
                   chatId,
-                  idMessage: sendResult.idMessage
+                  idMessage: sendResult.idMessage,
+                  urlFile: sendResult.urlFile
                 }),
                 { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
               );
-            } catch (blnErr) {
-              console.error("❌ Erreur expédition bilan via sendMessage :", blnErr);
+            } catch (pdfErr) {
+              console.error("❌ Erreur génération/envoi PDF, repli texte :", pdfErr);
+              const bilanMessage = await buildBilanMessage(supabase);
+              const sendMsgUrl = `${greenHost}/waInstance${greenInstanceId}/sendMessage/${greenApiToken}`;
+              await fetch(sendMsgUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ chatId, message: bilanMessage })
+              });
+              return new Response(
+                JSON.stringify({ success: true, command: "bln", format: "text_fallback" }),
+                { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+              );
             }
           }
 
@@ -990,8 +1037,436 @@ async function buildBilanMessage(supabase: any): Promise<string> {
   msg += "───────────────\n";
   msg += "🌐 *Fiche d'émargement de la Major :*\n";
   msg += "https://stg-welle.github.io/rotation-urgences/pointage.html\n\n";
-  msg += "📄 _Le bilan mensuel officiel sera généré en PDF à la fin du mois._";
+  msg += "📄 _Le bilan mensuel officiel est disponible en PDF ci-dessus._";
 
   return msg;
+}
+
+// Nettoyage ASCII pour encodage PDF standard (Helvetica)
+function cleanAscii(str: string): string {
+  if (!str) return "";
+  return str
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+// ==============================================================================
+// 6. GÉNÉRATION DU DOCUMENT PDF OFFICIEL DU CHUL POUR LA COMMANDE "bln"
+// ==============================================================================
+async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fileName: string; stats: any }> {
+  const [stagiairesRes, pointagesRes] = await Promise.all([
+    supabase.from("stagiaires").select("*").eq("actif", true).order("nom", { ascending: true }),
+    supabase.from("pointages").select("*").order("date", { ascending: true })
+  ]);
+
+  const stagiaires = stagiairesRes.data || [];
+  const pointages = pointagesRes.data || [];
+
+  const sessions = new Set(pointages.map((p: { date: string; creneau: string }) => `${p.date}_${p.creneau}`));
+
+  const stats: Record<string, {
+    nom: string;
+    present: number;
+    absent: number;
+    retard: number;
+    total: number;
+    rooms: Record<string, number>;
+  }> = {};
+
+  stagiaires.forEach((s: { id: string; nom: string }) => {
+    stats[s.id] = {
+      nom: s.nom,
+      present: 0,
+      absent: 0,
+      retard: 0,
+      total: 0,
+      rooms: { "Triage": 0, "Piquage": 0, "Déchocage": 0, "Observation": 0 }
+    };
+  });
+
+  pointages.forEach((p: { stagiaire_id: string; statut: string; salle: string }) => {
+    if (stats[p.stagiaire_id]) {
+      stats[p.stagiaire_id].total++;
+      if (p.statut === "present") stats[p.stagiaire_id].present++;
+      else if (p.statut === "absent") stats[p.stagiaire_id].absent++;
+      else if (p.statut === "retard") {
+        stats[p.stagiaire_id].retard++;
+        stats[p.stagiaire_id].present++;
+      }
+      if (stats[p.stagiaire_id].rooms[p.salle] !== undefined && p.statut !== "absent") {
+        stats[p.stagiaire_id].rooms[p.salle]++;
+      }
+    }
+  });
+
+  let totalScheduled = 0;
+  let totalAttended = 0;
+  let totalRetards = 0;
+  let totalAbsents = 0;
+  Object.values(stats).forEach((s) => {
+    totalScheduled += s.total;
+    totalAttended += s.present;
+    totalRetards += s.retard;
+    totalAbsents += s.absent;
+  });
+
+  const globalRate = totalScheduled > 0 ? Math.round((totalAttended / totalScheduled) * 100) : 100;
+
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([595.28, 841.89]); // A4
+  const { width, height } = page.getSize();
+
+  const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const fontOblique = await doc.embedFont(StandardFonts.HelveticaOblique);
+
+  const cNavy = rgb(0.08, 0.2, 0.38);
+  const cBlue = rgb(0.12, 0.42, 0.78);
+  const cSlate = rgb(0.39, 0.45, 0.55);
+  const cDark = rgb(0.1, 0.13, 0.18);
+  const cLightBg = rgb(0.96, 0.97, 0.99);
+  const cBorder = rgb(0.85, 0.89, 0.93);
+  const cGreen = rgb(0.05, 0.6, 0.38);
+  const cRed = rgb(0.85, 0.2, 0.2);
+  const cWhite = rgb(1, 1, 1);
+
+  let curY = height - 35;
+
+  // 1. Logo officiel CHUL
+  try {
+    const logoResp = await fetch("https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/logo-chul.png");
+    if (logoResp.ok) {
+      const logoBuffer = await logoResp.arrayBuffer();
+      const logoImg = await doc.embedPng(new Uint8Array(logoBuffer));
+      page.drawImage(logoImg, {
+        x: 40,
+        y: curY - 50,
+        width: 50,
+        height: 50
+      });
+    }
+  } catch (logoErr) {
+    console.warn("Logo non disponible :", logoErr);
+  }
+
+  // En-tete textuel officiel
+  page.drawText("REPUBLIQUE GABONAISE • MINISTERE DE LA SANTE", {
+    x: 105,
+    y: curY - 5,
+    size: 7.5,
+    font: fontBold,
+    color: cSlate
+  });
+
+  page.drawText("CENTRE HOSPITALIER UNIVERSITAIRE DE LIBREVILLE (CHUL)", {
+    x: 105,
+    y: curY - 20,
+    size: 11,
+    font: fontBold,
+    color: cNavy
+  });
+
+  page.drawText("DEPARTEMENT DE PEDIATRIE • SERVICE DES URGENCES PEDIATRIQUES", {
+    x: 105,
+    y: curY - 34,
+    size: 8.5,
+    font: fontBold,
+    color: cBlue
+  });
+
+  page.drawText("B.P. 2228 Libreville - Gabon • Direction des Soins Infirmiers", {
+    x: 105,
+    y: curY - 46,
+    size: 7,
+    font: fontRegular,
+    color: cSlate
+  });
+
+  curY -= 62;
+
+  // Ligne de separation
+  page.drawLine({
+    start: { x: 40, y: curY },
+    end: { x: width - 40, y: curY },
+    thickness: 1.5,
+    color: cNavy
+  });
+
+  curY -= 14;
+
+  // 2. Bloc Titre
+  const titleBoxHeight = 44;
+  page.drawRectangle({
+    x: 40,
+    y: curY - titleBoxHeight,
+    width: width - 80,
+    height: titleBoxHeight,
+    color: cLightBg,
+    borderColor: cBorder,
+    borderWidth: 1
+  });
+
+  page.drawText("BILAN D'ASSIDUITE & D'EMARGEMENT DES STAGIAIRES", {
+    x: 52,
+    y: curY - 18,
+    size: 12,
+    font: fontBold,
+    color: cNavy
+  });
+
+  const now = new Date();
+  const monthsFr = ["Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre"];
+  const currentMonthName = monthsFr[now.getMonth()];
+  const dateStr = `${now.getDate()} ${currentMonthName} ${now.getFullYear()} a ${String(now.getHours()).padStart(2, '0')}h${String(now.getMinutes()).padStart(2, '0')}`;
+
+  page.drawText(`Rapport officiel valide par la Major • Edition du ${dateStr} (Libreville)`, {
+    x: 52,
+    y: curY - 33,
+    size: 8,
+    font: fontOblique,
+    color: cSlate
+  });
+
+  curY -= (titleBoxHeight + 14);
+
+  // 3. KPI Cards
+  const cardWidth = (width - 80 - 18) / 4;
+  const cardHeight = 42;
+
+  const kpis = [
+    { label: "ASSIDUITE GLOBALE", val: `${globalRate}%`, color: cGreen },
+    { label: "SEANCES POINTEES", val: String(sessions.size), color: cNavy },
+    { label: "TOTAL ABSENCES", val: String(totalAbsents), color: totalAbsents > 0 ? cRed : cSlate },
+    { label: "TOTAL RETARDS", val: String(totalRetards), color: totalRetards > 0 ? rgb(0.85, 0.55, 0.1) : cSlate }
+  ];
+
+  kpis.forEach((kpi, idx) => {
+    const cardX = 40 + idx * (cardWidth + 6);
+    page.drawRectangle({
+      x: cardX,
+      y: curY - cardHeight,
+      width: cardWidth,
+      height: cardHeight,
+      color: rgb(0.98, 0.99, 1.0),
+      borderColor: cBorder,
+      borderWidth: 0.8
+    });
+
+    page.drawText(kpi.label, {
+      x: cardX + 8,
+      y: curY - 14,
+      size: 6.5,
+      font: fontBold,
+      color: cSlate
+    });
+
+    page.drawText(kpi.val, {
+      x: cardX + 8,
+      y: curY - 32,
+      size: 14,
+      font: fontBold,
+      color: kpi.color
+    });
+  });
+
+  curY -= (cardHeight + 18);
+
+  // 4. Tableau d'emargement des stagiaires
+  const colX = {
+    num: 45,
+    nom: 65,
+    pointages: 195,
+    taux: 260,
+    details: 310,
+    salles: 400,
+    statut: 485
+  };
+
+  const headerHeight = 20;
+  page.drawRectangle({
+    x: 40,
+    y: curY - headerHeight,
+    width: width - 80,
+    height: headerHeight,
+    color: cNavy
+  });
+
+  page.drawText("N°", { x: colX.num, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+  page.drawText("NOM DU STAGIAIRE", { x: colX.nom, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+  page.drawText("POINTAGES", { x: colX.pointages, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+  page.drawText("TAUX", { x: colX.taux, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+  page.drawText("ABS / RET", { x: colX.details, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+  page.drawText("POSTES OCCUPES", { x: colX.salles, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+  page.drawText("STATUT", { x: colX.statut, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+
+  curY -= headerHeight;
+
+  const sorted = Object.values(stats).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  const rowHeight = 18;
+
+  sorted.forEach((row, i) => {
+    const isEven = i % 2 === 0;
+    const bgRowColor = isEven ? rgb(0.98, 0.99, 1.0) : cWhite;
+
+    page.drawRectangle({
+      x: 40,
+      y: curY - rowHeight,
+      width: width - 80,
+      height: rowHeight,
+      color: bgRowColor,
+      borderColor: rgb(0.9, 0.92, 0.95),
+      borderWidth: 0.5
+    });
+
+    const yText = curY - 12;
+    page.drawText(String(i + 1), { x: colX.num, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+    page.drawText(cleanAscii(row.nom).slice(0, 24), { x: colX.nom, y: yText, size: 8, font: fontBold, color: cDark });
+
+    if (row.total > 0) {
+      const pct = Math.round((row.present / row.total) * 100);
+      page.drawText(`${row.present}/${row.total}`, { x: colX.pointages, y: yText, size: 7.5, font: fontRegular, color: cDark });
+      page.drawText(`${pct}%`, { x: colX.taux, y: yText, size: 7.5, font: fontBold, color: pct >= 80 ? cGreen : cRed });
+      page.drawText(`${row.absent} abs • ${row.retard} ret`, { x: colX.details, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+
+      const roomParts: string[] = [];
+      if (row.rooms["Triage"] > 0) roomParts.push(`Tri:${row.rooms["Triage"]}`);
+      if (row.rooms["Piquage"] > 0) roomParts.push(`Piq:${row.rooms["Piquage"]}`);
+      if (row.rooms["Déchocage"] > 0) roomParts.push(`Dec:${row.rooms["Déchocage"]}`);
+      if (row.rooms["Observation"] > 0) roomParts.push(`Obs:${row.rooms["Observation"]}`);
+      const roomsText = roomParts.length > 0 ? roomParts.join(" ") : "-";
+
+      page.drawText(cleanAscii(roomsText), { x: colX.salles, y: yText, size: 7.5, font: fontRegular, color: cNavy });
+      page.drawText(row.absent === 0 ? "Conforme" : "A surveiller", {
+        x: colX.statut,
+        y: yText,
+        size: 7.5,
+        font: fontBold,
+        color: row.absent === 0 ? cGreen : rgb(0.85, 0.5, 0.1)
+      });
+    } else {
+      page.drawText("0/0", { x: colX.pointages, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.taux, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.details, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+      page.drawText("En attente", { x: colX.salles, y: yText, size: 7, font: fontOblique, color: cSlate });
+      page.drawText("En attente", { x: colX.statut, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+    }
+
+    curY -= rowHeight;
+  });
+
+  curY -= 20;
+
+  // 5. Cadres de Visa et Signatures Officielles
+  const visaBoxWidth = (width - 80 - 20) / 2;
+  const visaBoxHeight = 70;
+
+  // Visa Major
+  page.drawRectangle({
+    x: 40,
+    y: curY - visaBoxHeight,
+    width: visaBoxWidth,
+    height: visaBoxHeight,
+    color: rgb(0.99, 0.99, 1.0),
+    borderColor: cBorder,
+    borderWidth: 0.8
+  });
+
+  page.drawText("POUR LA MAJOR DU SERVICE", {
+    x: 50,
+    y: curY - 16,
+    size: 7.5,
+    font: fontBold,
+    color: cNavy
+  });
+  page.drawText("Certification et pointage des presences :", {
+    x: 50,
+    y: curY - 28,
+    size: 7,
+    font: fontOblique,
+    color: cSlate
+  });
+  page.drawText("Date & Signature :", {
+    x: 50,
+    y: curY - 60,
+    size: 7,
+    font: fontBold,
+    color: cSlate
+  });
+
+  // Visa Medecin Chef
+  const chefX = 40 + visaBoxWidth + 20;
+  page.drawRectangle({
+    x: chefX,
+    y: curY - visaBoxHeight,
+    width: visaBoxWidth,
+    height: visaBoxHeight,
+    color: rgb(0.99, 0.99, 1.0),
+    borderColor: cBorder,
+    borderWidth: 0.8
+  });
+
+  page.drawText("POUR LE MEDECIN CHEF DE SERVICE", {
+    x: chefX + 10,
+    y: curY - 16,
+    size: 7.5,
+    font: fontBold,
+    color: cNavy
+  });
+  page.drawText("Validation officielle pour attestation de stage :", {
+    x: chefX + 10,
+    y: curY - 28,
+    size: 7,
+    font: fontOblique,
+    color: cSlate
+  });
+  page.drawText("Date & Signature :", {
+    x: chefX + 10,
+    y: curY - 60,
+    size: 7,
+    font: fontBold,
+    color: cSlate
+  });
+
+  // 6. Pied de page
+  page.drawLine({
+    start: { x: 40, y: 35 },
+    end: { x: width - 40, y: 35 },
+    thickness: 0.5,
+    color: cBorder
+  });
+
+  page.drawText("Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pediatriques", {
+    x: 40,
+    y: 22,
+    size: 7,
+    font: fontRegular,
+    color: cSlate
+  });
+
+  page.drawText("Document securise genere numeriquement • Page 1/1", {
+    x: width - 230,
+    y: 22,
+    size: 7,
+    font: fontRegular,
+    color: cSlate
+  });
+
+  const pdfBytes = await doc.save();
+  const fileName = `Bilan_Assiduite_CHUL_${currentMonthName}_${now.getFullYear()}.pdf`;
+
+  return {
+    bytes: pdfBytes,
+    fileName,
+    stats: {
+      globalRate,
+      stagiairesCount: stagiaires.length,
+      totalAbsents,
+      totalRetards,
+      sessionsCount: sessions.size
+    }
+  };
 }
 
