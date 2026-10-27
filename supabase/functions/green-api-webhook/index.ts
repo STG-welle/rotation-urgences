@@ -19,16 +19,32 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type"
 };
 
-// Cooldown anti-spam par chat (20 secondes)
+// Cooldown anti-spam par chat (5 secondes pour fluidifier les tests interactifs)
 const lastBotReplyByChat = new Map<string, number>();
-const BOT_COOLDOWN_MS = 20000;
+const BOT_COOLDOWN_MS = 5000;
 
-// Contacts autorisés par défaut pour la commande 'pln' (signatures des numéros)
+// Contacts autorisés par défaut pour les commandes interactives 'pln' et 'bln'
+// Signatures prises en charge : Admin (User), Major et Administrateur de secours
 // Modifiable aussi via variable d'environnement Supabase AUTHORIZED_WHATSAPP_NUMBERS
 const DEFAULT_AUTHORIZED_SIGNATURES = [
-  "7102959",   // 24107102959
-  "66651314",  // 24166651314
-  "7666132",   // 24107666132 / +241 07 66 61 32 (Admin)
+  // 1. Administrateur (Vous) : +241 07 66 61 32 / 24107666132
+  "24107666132",
+  "07666132",
+  "7666132",
+  "666132",
+  "2417666132",
+
+  // 2. Major des Urgences : +241 66 65 13 14 / 24166651314
+  "24166651314",
+  "066651314",
+  "66651314",
+  "651314",
+
+  // 3. Administrateur de secours : 24107102959
+  "24107102959",
+  "07102959",
+  "7102959",
+  "102959",
 ];
 
 serve(async (req: Request) => {
@@ -449,21 +465,40 @@ serve(async (req: Request) => {
         ).trim().toLowerCase();
 
         const chatId = payload.senderData?.chatId;
-        const senderId = payload.senderData?.sender || payload.senderData?.chatId || "";
-        const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Stagiaire";
+        const instanceWid = payload.instanceData?.wid || "";
+        let senderId = payload.senderData?.sender || "";
+
+        // En outgoingMessageReceived (quand le message est envoyé depuis le téléphone du bot),
+        // l'émetteur est le propriétaire de la session WhatsApp.
+        if (typeWebhook === "outgoingMessageReceived") {
+          senderId = payload.senderData?.sender || instanceWid || "24107666132@c.us";
+        } else if (!senderId) {
+          senderId = payload.senderData?.chatId || "";
+        }
+
+        const senderName = payload.senderData?.senderName || payload.senderData?.senderContactName || "Admin/Major";
         const quotedMessageId = payload.idMessage;
 
-        console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${senderId} / ${chatId}) : "${textMessage}"`);
+        console.log(`📩 Message WhatsApp (${typeWebhook}) reçu de ${senderName} (${senderId} / chat: ${chatId}) : "${textMessage}"`);
 
-        // Protection anti-boucle : Ignorer les images et les messages du bot
+        // Protection anti-boucle : Ignorer les images et les messages émis par le bot
         if (payload.messageData?.typeMessage === "imageMessage") {
           return new Response(JSON.stringify({ success: true, ignored: "imageMessage" }), { headers: CORS_HEADERS });
         }
-        const isBotMessage = textMessage.includes("planning des urgences pédiatriques") || textMessage.includes("bonsoir l'équipe") || textMessage.includes("voici de nouveau") || textMessage.includes("Bilan d'Assiduité") || textMessage.includes("Bilan d'Émargement");
+        const isBotMessage = 
+          textMessage.includes("planning des urgences pédiatriques") || 
+          textMessage.includes("bonsoir l'équipe") || 
+          textMessage.includes("voici de nouveau") || 
+          textMessage.includes("bilan d'assiduité") || 
+          textMessage.includes("bilan d'émargement") ||
+          textMessage.includes("fiche d'émargement de la major");
 
-        // Détection des commandes : "pln" (planning) et "bln" (bilan)
-        const isPlnTrigger = /(?:^|\s|\/|!)(pln|planning)(?:\s|$|[!?.,])/i.test(textMessage);
-        const isBlnTrigger = /(?:^|\s|\/|!)(bln|bilan)(?:\s|$|[!?.,])/i.test(textMessage);
+        // Détection des commandes : "pln" (planning) et "bln" (bilan d'émargement)
+        const isPlnTrigger = /(?:^|\s|\/|!|#|\.)(pln|planning)(?:\s|$|[!?.,])/i.test(textMessage);
+        const isBlnTrigger = 
+          /(?:^|\s|\/|!|#|\.)bln(?:\s|$|[!?.,])/i.test(textMessage) ||
+          /^(?:!|\/|#|\.)?bilan(?:\s|$|[!?.,])/i.test(textMessage.trim()) ||
+          /(?:bilan\s+(?:du\s+mois|de\s+stage|des\s+stages|des\s+présences|des\s+presences|d'émargement|d'emargement|assiduité|assiduite|actuel|en\s+cours|retard|retards))/i.test(textMessage);
 
         if (chatId && !isBotMessage && (isPlnTrigger || isBlnTrigger)) {
           // Filtrage des contacts autorisés
@@ -477,7 +512,7 @@ serve(async (req: Request) => {
             : DEFAULT_AUTHORIZED_SIGNATURES;
 
           const senderDigits = senderId.replace(/[^0-9]/g, "");
-          const isAuthorized = authorizedSignatures.some(sig => senderDigits.endsWith(sig));
+          const isAuthorized = authorizedSignatures.some(sig => senderDigits.endsWith(sig) || senderDigits === sig);
 
           if (!isAuthorized) {
             console.log(`⛔ Demande '${isBlnTrigger ? "bln" : "pln"}' ignorée : ${senderName} (${senderId}) n'est pas dans la liste des contacts autorisés.`);
@@ -487,11 +522,11 @@ serve(async (req: Request) => {
             );
           }
 
-          // Protection anti-spam par cooldown (15 secondes)
+          // Protection anti-spam par cooldown (5 secondes)
           const now = Date.now();
           const lastSent = lastBotReplyByChat.get(chatId) || 0;
           if (now - lastSent < BOT_COOLDOWN_MS) {
-            console.log(`⏳ [COOLDOWN] Demande ignorée dans ${chatId} (${Math.round((now - lastSent) / 1000)}s écoulées sur 20s requises).`);
+            console.log(`⏳ [COOLDOWN] Demande ignorée dans ${chatId} (${Math.round((now - lastSent) / 1000)}s écoulées sur 5s requises).`);
             return new Response(
               JSON.stringify({ success: true, ignored: "cooldown", chatId }),
               { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -904,9 +939,13 @@ async function buildBilanMessage(supabase: any): Promise<string> {
 
   let totalScheduled = 0;
   let totalAttended = 0;
+  let totalRetards = 0;
+  let totalAbsents = 0;
   Object.values(stats).forEach((s) => {
     totalScheduled += s.total;
     totalAttended += s.present;
+    totalRetards += s.retard;
+    totalAbsents += s.absent;
   });
 
   const globalRate = totalScheduled > 0 ? Math.round((totalAttended / totalScheduled) * 100) : 100;
@@ -915,8 +954,11 @@ async function buildBilanMessage(supabase: any): Promise<string> {
   msg += "📊 *Bilan d'Assiduité & Émargement (en cours)*\n\n";
   msg += `📈 *Assiduité globale du service : ${globalRate}%*\n`;
   msg += `📝 *Séances d'émargement enregistrées : ${sessions.size}*\n`;
-  msg += `👥 *Stagiaires actifs : ${stagiaires.length}*\n\n`;
-  msg += "───────────────\n";
+  msg += `👥 *Stagiaires actifs : ${stagiaires.length}*\n`;
+  if (totalRetards > 0 || totalAbsents > 0) {
+    msg += `⚠️ *Cumul du mois : ${totalAbsents} absence(s) • ⏱ ${totalRetards} retard(s)*\n`;
+  }
+  msg += "\n───────────────\n";
   msg += "📋 *SITUATION DES STAGIAIRES :*\n\n";
 
   const sorted = Object.values(stats).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
@@ -927,8 +969,13 @@ async function buildBilanMessage(supabase: any): Promise<string> {
       return;
     }
     const pct = Math.round((s.present / s.total) * 100);
-    const badge = s.absent > 0 ? `⚠️ ${s.absent} abs` : `✅ 100%`;
-    msg += `• *${s.nom}* : ${s.present}/${s.total} présent (${pct}% • ${badge})\n`;
+    const badges: string[] = [];
+    if (s.absent > 0) badges.push(`⚠️ ${s.absent} abs`);
+    if (s.retard > 0) badges.push(`⏱ ${s.retard} retard`);
+    if (badges.length === 0) badges.push(`✅ 100%`);
+    const badgeStr = badges.join(" • ");
+
+    msg += `• *${s.nom}* : ${s.present}/${s.total} présent (${pct}% • ${badgeStr})\n`;
     const roomDetails: string[] = [];
     if (s.rooms["Triage"] > 0) roomDetails.push(`Tri: ${s.rooms["Triage"]}`);
     if (s.rooms["Piquage"] > 0) roomDetails.push(`Piq: ${s.rooms["Piquage"]}`);
