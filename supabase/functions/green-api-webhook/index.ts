@@ -282,6 +282,21 @@ serve(async (req: Request) => {
       }
     }
 
+    // E2. Endpoint GET pour tester la génération du texte de bilan (bln)
+    if (action === "test_bilan") {
+      try {
+        const bilanText = await buildBilanMessage(supabase);
+        return new Response(JSON.stringify({ success: true, bilan: bilanText }, null, 2), {
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: (e as Error).message }), {
+          status: 500,
+          headers: { ...CORS_HEADERS, "Content-Type": "application/json" }
+        });
+      }
+    }
+
     // F. Endpoint GET pour vérifier le statut d'un message
     if (action === "check_msg") {
       const idMessage = url.searchParams.get("id") || "3EB081F434FBF919770E32";
@@ -444,12 +459,13 @@ serve(async (req: Request) => {
         if (payload.messageData?.typeMessage === "imageMessage") {
           return new Response(JSON.stringify({ success: true, ignored: "imageMessage" }), { headers: CORS_HEADERS });
         }
-        const isBotMessage = textMessage.includes("planning des urgences pédiatriques") || textMessage.includes("bonsoir l'équipe") || textMessage.includes("voici de nouveau");
+        const isBotMessage = textMessage.includes("planning des urgences pédiatriques") || textMessage.includes("bonsoir l'équipe") || textMessage.includes("voici de nouveau") || textMessage.includes("Bilan d'Assiduité") || textMessage.includes("Bilan d'Émargement");
 
-        // Détection du mot-clé court "pln" (ou "planning")
+        // Détection des commandes : "pln" (planning) et "bln" (bilan)
         const isPlnTrigger = /(?:^|\s|\/|!)(pln|planning)(?:\s|$|[!?.,])/i.test(textMessage);
+        const isBlnTrigger = /(?:^|\s|\/|!)(bln|bilan)(?:\s|$|[!?.,])/i.test(textMessage);
 
-        if (chatId && !isBotMessage && isPlnTrigger) {
+        if (chatId && !isBotMessage && (isPlnTrigger || isBlnTrigger)) {
           // Filtrage des contacts autorisés
           const envSignatures = (Deno.env.get("AUTHORIZED_WHATSAPP_NUMBERS") || "")
             .split(",")
@@ -464,18 +480,18 @@ serve(async (req: Request) => {
           const isAuthorized = authorizedSignatures.some(sig => senderDigits.endsWith(sig));
 
           if (!isAuthorized) {
-            console.log(`⛔ Demande 'pln' ignorée : ${senderName} (${senderId}) n'est pas dans la liste des contacts autorisés.`);
+            console.log(`⛔ Demande '${isBlnTrigger ? "bln" : "pln"}' ignorée : ${senderName} (${senderId}) n'est pas dans la liste des contacts autorisés.`);
             return new Response(
               JSON.stringify({ success: true, ignored: "unauthorized_sender", sender: senderId }),
               { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
             );
           }
 
-          // Protection anti-spam par cooldown (20 secondes)
+          // Protection anti-spam par cooldown (15 secondes)
           const now = Date.now();
           const lastSent = lastBotReplyByChat.get(chatId) || 0;
           if (now - lastSent < BOT_COOLDOWN_MS) {
-            console.log(`⏳ [COOLDOWN] Demande 'pln' ignorée dans ${chatId} (${Math.round((now - lastSent) / 1000)}s écoulées sur 20s requises).`);
+            console.log(`⏳ [COOLDOWN] Demande ignorée dans ${chatId} (${Math.round((now - lastSent) / 1000)}s écoulées sur 20s requises).`);
             return new Response(
               JSON.stringify({ success: true, ignored: "cooldown", chatId }),
               { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
@@ -483,58 +499,107 @@ serve(async (req: Request) => {
           }
           lastBotReplyByChat.set(chatId, now);
 
-          console.log(`🤖 [BOT AUTORISÉ] Commande 'pln' validée pour ${senderName} ! Envoi du planning au chat ${chatId}...`);
+          // CAS 1 : COMMANDE "bln" (Bilan d'émargement en cours)
+          if (isBlnTrigger) {
+            console.log(`🤖 [BOT AUTORISÉ] Commande 'bln' reçue de ${senderName} ! Génération du bilan...`);
+            const bilanMessage = await buildBilanMessage(supabase);
+            const sendMsgUrl = `${greenHost}/waInstance${greenInstanceId}/sendMessage/${greenApiToken}`;
 
-          const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
-          const captionText = "Salut ! Voici de nouveau le planning des urgences pédiatriques de la semaine.\n\nBonne semaine !";
+            try {
+              let sendResp = await fetch(sendMsgUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chatId,
+                  message: bilanMessage,
+                  quotedMessageId
+                })
+              });
 
-          try {
-            const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
+              let sendResult = await sendResp.json().catch(() => ({}));
+              if (!sendResp.ok || sendResult.error) {
+                console.warn("Retentative d'envoi sendMessage sans quote...", sendResult);
+                sendResp = await fetch(sendMsgUrl, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chatId,
+                    message: bilanMessage
+                  })
+                });
+                sendResult = await sendResp.json().catch(() => ({}));
+              }
 
-            // Tentative 1 : avec citation du message demandeur
-            let sendResp = await fetch(sendFileUrl, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chatId,
-                urlFile: publicImageUrl,
-                fileName: "planning-semaine.png",
-                caption: captionText,
-                quotedMessageId
-              })
-            });
+              console.log("✅ Résultat Green API sendMessage (bln) :", JSON.stringify(sendResult));
 
-            let sendResult = await sendResp.json().catch(() => ({}));
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  command: "bln",
+                  chatId,
+                  idMessage: sendResult.idMessage
+                }),
+                { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+              );
+            } catch (blnErr) {
+              console.error("❌ Erreur expédition bilan via sendMessage :", blnErr);
+            }
+          }
 
-            // Si échec avec quotedMessageId, repli sans citation
-            if (!sendResp.ok || sendResult.error) {
-              console.warn("Retentative d'envoi sendFileByUrl sans quote...", sendResult);
-              sendResp = await fetch(sendFileUrl, {
+          // CAS 2 : COMMANDE "pln" (Planning hebdomadaire)
+          if (isPlnTrigger) {
+            console.log(`🤖 [BOT AUTORISÉ] Commande 'pln' validée pour ${senderName} ! Envoi du planning au chat ${chatId}...`);
+            const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
+            const captionText = "Salut ! Voici de nouveau le planning des urgences pédiatriques de la semaine.\n\nBonne semaine !";
+
+            try {
+              const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
+
+              // Tentative 1 : avec citation du message demandeur
+              let sendResp = await fetch(sendFileUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   chatId,
                   urlFile: publicImageUrl,
                   fileName: "planning-semaine.png",
-                  caption: captionText
+                  caption: captionText,
+                  quotedMessageId
                 })
               });
-              sendResult = await sendResp.json().catch(() => ({}));
+
+              let sendResult = await sendResp.json().catch(() => ({}));
+
+              // Si échec avec quotedMessageId, repli sans citation
+              if (!sendResp.ok || sendResult.error) {
+                console.warn("Retentative d'envoi sendFileByUrl sans quote...", sendResult);
+                sendResp = await fetch(sendFileUrl, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    chatId,
+                    urlFile: publicImageUrl,
+                    fileName: "planning-semaine.png",
+                    caption: captionText
+                  })
+                });
+                sendResult = await sendResp.json().catch(() => ({}));
+              }
+
+              console.log("✅ Résultat final Green API sendFileByUrl :", JSON.stringify(sendResult));
+
+              return new Response(
+                JSON.stringify({
+                  success: true,
+                  command: "pln",
+                  chatId,
+                  idMessage: sendResult.idMessage
+                }),
+                { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+              );
+            } catch (sendErr) {
+              console.error("❌ Erreur expédition image via sendFileByUrl :", sendErr);
             }
-
-            console.log("✅ Résultat final Green API sendFileByUrl :", JSON.stringify(sendResult));
-
-            return new Response(
-              JSON.stringify({
-                success: true,
-                botReplied: true,
-                chatId,
-                idMessage: sendResult.idMessage
-              }),
-              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-            );
-          } catch (sendErr) {
-            console.error("❌ Erreur expédition image via sendFileByUrl :", sendErr);
           }
         }
 
@@ -783,3 +848,103 @@ async function triggerAdminAlert(opts: {
     }
   }
 }
+
+// ==============================================================================
+// 5. GÉNÉRATION DU BILAN D'ASSIDUITÉ & D'ÉMARGEMENT POUR LA COMMANDE "bln"
+// ==============================================================================
+async function buildBilanMessage(supabase: any): Promise<string> {
+  const [stagiairesRes, pointagesRes] = await Promise.all([
+    supabase.from("stagiaires").select("*").eq("actif", true).order("nom", { ascending: true }),
+    supabase.from("pointages").select("*").order("date", { ascending: true })
+  ]);
+
+  const stagiaires = stagiairesRes.data || [];
+  const pointages = pointagesRes.data || [];
+
+  if (!pointages || pointages.length === 0) {
+    return "🏥 *CHUL • SERVICE DES URGENCES PÉDIATRIQUES*\n📊 *Bilan d'Émargement en cours*\n\nℹ️ _Aucun pointage n'a encore été enregistré pour ce mois._\n\n👉 *Fiche d'émargement de la Major :*\nhttps://stg-welle.github.io/rotation-urgences/pointage.html";
+  }
+
+  const sessions = new Set(pointages.map((p: { date: string; creneau: string }) => `${p.date}_${p.creneau}`));
+
+  const stats: Record<string, {
+    nom: string;
+    present: number;
+    absent: number;
+    retard: number;
+    total: number;
+    rooms: Record<string, number>;
+  }> = {};
+
+  stagiaires.forEach((s: { id: string; nom: string }) => {
+    stats[s.id] = {
+      nom: s.nom,
+      present: 0,
+      absent: 0,
+      retard: 0,
+      total: 0,
+      rooms: { "Triage": 0, "Piquage": 0, "Déchocage": 0, "Observation": 0 }
+    };
+  });
+
+  pointages.forEach((p: { stagiaire_id: string; statut: string; salle: string }) => {
+    if (stats[p.stagiaire_id]) {
+      stats[p.stagiaire_id].total++;
+      if (p.statut === "present") stats[p.stagiaire_id].present++;
+      else if (p.statut === "absent") stats[p.stagiaire_id].absent++;
+      else if (p.statut === "retard") {
+        stats[p.stagiaire_id].retard++;
+        stats[p.stagiaire_id].present++;
+      }
+      if (stats[p.stagiaire_id].rooms[p.salle] !== undefined && p.statut !== "absent") {
+        stats[p.stagiaire_id].rooms[p.salle]++;
+      }
+    }
+  });
+
+  let totalScheduled = 0;
+  let totalAttended = 0;
+  Object.values(stats).forEach((s) => {
+    totalScheduled += s.total;
+    totalAttended += s.present;
+  });
+
+  const globalRate = totalScheduled > 0 ? Math.round((totalAttended / totalScheduled) * 100) : 100;
+
+  let msg = "🏥 *CHUL • URGENCES PÉDIATRIQUES*\n";
+  msg += "📊 *Bilan d'Assiduité & Émargement (en cours)*\n\n";
+  msg += `📈 *Assiduité globale du service : ${globalRate}%*\n`;
+  msg += `📝 *Séances d'émargement enregistrées : ${sessions.size}*\n`;
+  msg += `👥 *Stagiaires actifs : ${stagiaires.length}*\n\n`;
+  msg += "───────────────\n";
+  msg += "📋 *SITUATION DES STAGIAIRES :*\n\n";
+
+  const sorted = Object.values(stats).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+
+  sorted.forEach((s) => {
+    if (s.total === 0) {
+      msg += `• *${s.nom}* : _0 séance pointée_\n\n`;
+      return;
+    }
+    const pct = Math.round((s.present / s.total) * 100);
+    const badge = s.absent > 0 ? `⚠️ ${s.absent} abs` : `✅ 100%`;
+    msg += `• *${s.nom}* : ${s.present}/${s.total} présent (${pct}% • ${badge})\n`;
+    const roomDetails: string[] = [];
+    if (s.rooms["Triage"] > 0) roomDetails.push(`Tri: ${s.rooms["Triage"]}`);
+    if (s.rooms["Piquage"] > 0) roomDetails.push(`Piq: ${s.rooms["Piquage"]}`);
+    if (s.rooms["Déchocage"] > 0) roomDetails.push(`Déc: ${s.rooms["Déchocage"]}`);
+    if (s.rooms["Observation"] > 0) roomDetails.push(`Obs: ${s.rooms["Observation"]}`);
+    if (roomDetails.length > 0) {
+      msg += `  ↳ ${roomDetails.join(" | ")}\n`;
+    }
+    msg += "\n";
+  });
+
+  msg += "───────────────\n";
+  msg += "🌐 *Fiche d'émargement de la Major :*\n";
+  msg += "https://stg-welle.github.io/rotation-urgences/pointage.html\n\n";
+  msg += "📄 _Le bilan mensuel officiel sera généré en PDF à la fin du mois._";
+
+  return msg;
+}
+
