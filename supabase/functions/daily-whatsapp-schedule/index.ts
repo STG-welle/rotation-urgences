@@ -719,7 +719,7 @@ FORMAT EXACT REQUIS :
 🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
 *Date : ${ctx.date}*
 
-☀️ *MATINÉE • ${ctx.morningTeam.name.toUpperCase()}*
+☀️ *MATINÉE • ${ctx.morningTeam.name.toUpperCase()}* (07h30 - 12h00)
 
 🔵 *Triage*
 
@@ -742,7 +742,7 @@ FORMAT EXACT REQUIS :
 • Nom2
 
 ───────────────
-🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}*
+🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)
 
 🔵 *Triage*
 
@@ -872,7 +872,8 @@ function generateFallbackTemplate(ctx: {
     msg += `_Reprise du service lundi matin._\n\n`;
   } else if (!ctx.hasTeam2) {
     const singleTeam = ctx.morningTeam.name === "Équipe 1" ? ctx.morningTeam : ctx.afternoonTeam;
-    msg += `${singleTeam.emoji} *${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}*\n\n`;
+    const hours = singleTeam.shift === "Matinée" ? "(07h30 - 12h00)" : "(12h00 - 17h00)";
+    msg += `${singleTeam.emoji} *${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}* ${hours}\n\n`;
     singleTeam.assignments.forEach((ra) => {
       msg += `${ra.emoji} *${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {
@@ -885,7 +886,7 @@ function generateFallbackTemplate(ctx: {
       }
     });
   } else {
-    msg += `☀️ *MATINÉE • ${ctx.morningTeam.name.toUpperCase()}*\n\n`;
+    msg += `☀️ *MATINÉE • ${ctx.morningTeam.name.toUpperCase()}* (07h30 - 12h00)\n\n`;
     ctx.morningTeam.assignments.forEach((ra) => {
       msg += `${ra.emoji} *${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {
@@ -899,7 +900,7 @@ function generateFallbackTemplate(ctx: {
     });
 
     msg += `───────────────\n`;
-    msg += `🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}*\n\n`;
+    msg += `🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)\n\n`;
     ctx.afternoonTeam.assignments.forEach((ra) => {
       msg += `${ra.emoji} *${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {

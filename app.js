@@ -2132,7 +2132,7 @@
       text += `⚪ *R.A.S*\n_Reprise du service lundi matin._\n\n`;
     } else if (!hasTeam2) {
       const shift = team1Schedule.currentTeamShift;
-      text += `*${shift.label.toUpperCase()} • ÉQUIPE 1* (${shift.shift === 'matin' ? '07h30 - 14h30' : '14h00 - 20h30'})\n\n`;
+      text += `*${shift.label.toUpperCase()} • ÉQUIPE 1* (${shift.shift === 'matin' ? '07h30 - 12h00' : '12h00 - 17h00'})\n\n`;
       day1.roomAssignments.forEach((ra) => {
         text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
@@ -2159,7 +2159,7 @@
         : { name: 'ÉQUIPE 1', day: day1 };
 
       // 1. Matinée
-      text += `*MATINÉE • ${morningTeam.name}* (07h30 - 14h30)\n\n`;
+      text += `*MATINÉE • ${morningTeam.name}* (07h30 - 12h00)\n\n`;
       morningTeam.day.roomAssignments.forEach((ra) => {
         text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
@@ -2176,7 +2176,7 @@
       text += `───────────────\n`;
 
       // 3. Après-midi
-      text += `*APRÈS-MIDI • ${afternoonTeam.name}* (14h00 - 20h30)\n\n`;
+      text += `*APRÈS-MIDI • ${afternoonTeam.name}* (12h00 - 17h00)\n\n`;
       afternoonTeam.day.roomAssignments.forEach((ra) => {
         text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
@@ -2210,11 +2210,11 @@
     if (hasTeam2) {
       const t1Shift = team1Schedule.shifts.team1;
       const t2Shift = team1Schedule.shifts.team2;
-      text += `• Équipe 1 : ${t1Shift.badgeLabel} (${t1Shift.shift === 'matin' ? '07h30-14h30' : '14h00-20h30'})\n`;
-      text += `• Équipe 2 : ${t2Shift.badgeLabel} (${t2Shift.shift === 'matin' ? '07h30-14h30' : '14h00-20h30'})\n\n`;
+      text += `• Équipe 1 : ${t1Shift.badgeLabel} (${t1Shift.shift === 'matin' ? '07h30 - 12h00' : '12h00 - 17h00'})\n`;
+      text += `• Équipe 2 : ${t2Shift.badgeLabel} (${t2Shift.shift === 'matin' ? '07h30 - 12h00' : '12h00 - 17h00'})\n\n`;
     } else {
       const shift = team1Schedule.currentTeamShift;
-      text += `• Créneau : ${shift.badgeLabel}\n\n`;
+      text += `• Créneau : ${shift.badgeLabel} (${shift.shift === 'matin' ? '07h30 - 12h00' : '12h00 - 17h00'})\n\n`;
     }
 
     for (let d = 0; d < 7; d++) {
