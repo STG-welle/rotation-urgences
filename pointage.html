@@ -319,6 +319,26 @@
         initEventListeners();
         await loadStagiaires();
         await renderRoster();
+
+        // Réactualisation automatique quand la Major déverrouille son téléphone
+        document.addEventListener('visibilitychange', async () => {
+          if (document.visibilityState === 'visible') {
+            await loadStagiaires();
+            await renderRoster();
+          }
+        });
+
+        // Synchronisation en direct (Temps réel Supabase) si un stagiaire est ajouté ou supprimé
+        if (supabase) {
+          supabase
+            .channel('pointage-stagiaires-live')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stagiaires' }, async () => {
+              console.log('Changement détecté dans la base des stagiaires, actualisation...');
+              await loadStagiaires();
+              await renderRoster();
+            })
+            .subscribe();
+        }
       });
 
       function initEventListeners() {
