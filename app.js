@@ -993,7 +993,7 @@
         <div class="pt-4 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500 font-semibold">
           <div class="flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-slate-400"></span>
-            <span>Samedi & Dimanche : Repos de garde (R.A.S) • Reprise de la rotation lundi à 07h30</span>
+            <span>Samedi & Dimanche : Repos (R.A.S) • Reprise de la rotation lundi à 07h30</span>
           </div>
           <div>
             Application web : <span class="font-bold text-slate-800">https://stg-welle.github.io/rotation-urgences/</span>
