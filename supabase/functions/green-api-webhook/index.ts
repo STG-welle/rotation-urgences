@@ -1351,9 +1351,9 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
 
   // 5. Cadres de Visa et Signatures Officielles
   const visaBoxWidth = (width - 80 - 20) / 2;
-  const visaBoxHeight = 70;
+  const visaBoxHeight = 65;
 
-  // Visa Major
+  // Cadre Major de Service
   page.drawRectangle({
     x: 40,
     y: curY - visaBoxHeight,
@@ -1364,29 +1364,22 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
     borderWidth: 0.8
   });
 
-  page.drawText("POUR LA MAJOR DU SERVICE", {
+  page.drawText("MAJOR DE SERVICE", {
     x: 50,
-    y: curY - 16,
-    size: 7.5,
+    y: curY - 18,
+    size: 8,
     font: fontBold,
     color: cNavy
   });
-  page.drawText("Certification et pointage des presences :", {
-    x: 50,
-    y: curY - 28,
-    size: 7,
-    font: fontOblique,
-    color: cSlate
-  });
   page.drawText("Date & Signature :", {
     x: 50,
-    y: curY - 60,
-    size: 7,
+    y: curY - 52,
+    size: 7.5,
     font: fontBold,
     color: cSlate
   });
 
-  // Visa Medecin Chef
+  // Cadre Medecin Chef de Service
   const chefX = 40 + visaBoxWidth + 20;
   page.drawRectangle({
     x: chefX,
@@ -1398,24 +1391,17 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
     borderWidth: 0.8
   });
 
-  page.drawText("POUR LE MEDECIN CHEF DE SERVICE", {
+  page.drawText("MEDECIN CHEF DE SERVICE", {
     x: chefX + 10,
-    y: curY - 16,
-    size: 7.5,
+    y: curY - 18,
+    size: 8,
     font: fontBold,
     color: cNavy
   });
-  page.drawText("Validation officielle pour attestation de stage :", {
-    x: chefX + 10,
-    y: curY - 28,
-    size: 7,
-    font: fontOblique,
-    color: cSlate
-  });
   page.drawText("Date & Signature :", {
     x: chefX + 10,
-    y: curY - 60,
-    size: 7,
+    y: curY - 52,
+    size: 7.5,
     font: fontBold,
     color: cSlate
   });
