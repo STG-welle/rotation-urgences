@@ -325,7 +325,31 @@ serve(async (req: Request) => {
     const year = targetDate.getUTCFullYear();
     const formattedDateFr = `${dayName} ${dayNumber} ${monthName} ${year}`;
 
-    // 7. Calcul de l'alternance hebdomadaire des créneaux (Matinée vs Après-midi)
+    // ==========================================================================
+    // RÈGLE STRICTE DEMANDÉE : BRIEFING DU MATIN UNIQUEMENT MARDI ET JEUDI
+    // ==========================================================================
+    // Les autres jours (Lundi, Mercredi, Vendredi, Samedi, Dimanche), pas d'envoi automatique
+    // afin de ne pas rendre inutile l'emploi du temps hebdomadaire envoyé le dimanche.
+    const isBriefingDay = dayIndex === 1 || dayIndex === 3; // 1 = Mardi, 3 = Jeudi
+    if (!isBriefingDay && !bodyParams.force && !bodyParams.previewOnly) {
+      console.log(`[BRIEFING IGNORÉ] Aujourd'hui c'est ${dayName}. Les briefings automatiques sont programmés uniquement le Mardi et le Jeudi.`);
+      return new Response(
+        JSON.stringify({
+          success: true,
+          skipped: true,
+          reason: "only_tuesday_and_thursday",
+          dayName,
+          date: formattedDateFr,
+          message: `Le briefing matinal est programmé uniquement le Mardi et le Jeudi. Aujourd'hui (${dayName}), les stagiaires se réfèrent à l'emploi du temps de la semaine.`
+        }, null, 2),
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
+    }
     // Référence : Lundi 19 Octobre 2026 (Semaine 0) -> Équipe 1 = Matinée, Équipe 2 = Après-midi
     // Inversion automatique chaque lundi :
     // - Semaine du 26 Octobre (Semaine 1) : Équipe 1 = Après-midi, Équipe 2 = Matinée
@@ -716,8 +740,8 @@ ${JSON.stringify(ctx.morningTeam.assignments, null, 2)}
 ${JSON.stringify(ctx.afternoonTeam.assignments, null, 2)}
 
 FORMAT EXACT REQUIS :
-🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
-*Date : ${ctx.date}*
+🏥 *CHUL • URGENCES PÉDIATRIQUES*
+📋 *Briefing du Jour — ${ctx.date}*
 
 ☀️ *MATINÉE • ${ctx.morningTeam.name.toUpperCase()}* (07h30 - 12h00)
 
@@ -741,7 +765,7 @@ FORMAT EXACT REQUIS :
 • Nom1
 • Nom2
 
-───────────────
+─────────────────────
 🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)
 
 🔵 *Triage*
@@ -763,6 +787,9 @@ FORMAT EXACT REQUIS :
 
 • NomG
 • NomH
+
+─────────────────────
+💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._
 
 🌐 *Planning complet de la semaine :*
 https://stg-welle.github.io/rotation-urgences/
@@ -864,8 +891,8 @@ function generateFallbackTemplate(ctx: {
     absentStudents: string[];
   }>;
 }): string {
-  let msg = `🏥 *${ctx.hopital} • ${ctx.service}*\n`;
-  msg += `*Date : ${ctx.date}*\n\n`;
+  let msg = `🏥 *CHUL • URGENCES PÉDIATRIQUES*\n`;
+  msg += `📋 *Briefing du Jour — ${ctx.date}*\n\n`;
 
   if (ctx.isWeekend) {
     msg += `⚪ *R.A.S*\n`;
@@ -899,7 +926,7 @@ function generateFallbackTemplate(ctx: {
       }
     });
 
-    msg += `───────────────\n`;
+    msg += `─────────────────────\n`;
     msg += `🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)\n\n`;
     ctx.afternoonTeam.assignments.forEach((ra) => {
       msg += `${ra.emoji} *${ra.room}*\n\n`;
@@ -914,6 +941,8 @@ function generateFallbackTemplate(ctx: {
     });
   }
 
+  msg += `─────────────────────\n`;
+  msg += `💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._\n\n`;
   msg += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/`;
   return msg;
 }
@@ -925,7 +954,7 @@ async function sendToWhatsAppGateway(message: string): Promise<Record<string, un
   // Option A : Green API (https://green-api.com)
   const greenInstanceId = Deno.env.get("GREEN_API_INSTANCE_ID");
   const greenApiToken = Deno.env.get("GREEN_API_TOKEN");
-  const whatsappChatId = Deno.env.get("WHATSAPP_CHAT_ID"); // ex: "120363023456789012@g.us" pour un groupe
+  const whatsappChatId = Deno.env.get("WHATSAPP_CHAT_ID") || "120363426696951541@g.us";
 
   if (greenInstanceId && greenApiToken && whatsappChatId) {
     const greenHost = (Deno.env.get("GREEN_API_HOST") || "https://7107.api.greenapi.com").replace(/\/+$/, "");

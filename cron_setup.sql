@@ -28,7 +28,7 @@ begin
 end;
 $$;
 
--- 3. Programmer l'appel chaque Dimanche soir à 18h00 UTC = 19h00:00 à Libreville
+-- 3. Programmer le Planning Hebdomadaire chaque Dimanche soir à 18h00 UTC = 19h00 Libreville
 -- Syntaxe cron : minute(0) heure(18) jour(*) mois(*) jour_semaine(0 = Dimanche)
 select cron.schedule(
   'declencheur-hebdo-planning-whatsapp',
@@ -47,10 +47,25 @@ select cron.schedule(
   $$
 );
 
--- 4. Vérifier que la tâche est bien programmée et active
+-- 4. Programmer le Petit Briefing du Jour : Mardi et Jeudi à 04h10 UTC = 05h10 Libreville
+-- Syntaxe cron : minute(10) heure(4) jour(*) mois(*) jour_semaine(2,4 = Mardi et Jeudi)
+select cron.schedule(
+  'briefing-matin-mardi-jeudi',
+  '10 4 * * 2,4',
+  $$
+  select net.http_post(
+    url := 'https://ezpbmutbkuoudmyyozlr.supabase.co/functions/v1/daily-whatsapp-schedule',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json'
+    ),
+    body := '{"source": "pg_cron_briefing_tue_thu"}'::jsonb
+  ) as request_id;
+  $$
+);
+
+-- 5. Vérifier que les tâches sont bien programmées et actives
 select jobid, jobname, schedule, active, command 
-from cron.job 
-where jobname = 'declencheur-hebdo-planning-whatsapp';
+from cron.job;
 
 -- ==============================================================================
 -- TEST MANUEL IMMÉDIAT (Optionnel) :
