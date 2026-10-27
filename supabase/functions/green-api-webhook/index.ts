@@ -948,8 +948,9 @@ async function buildBilanMessage(supabase: any): Promise<string> {
     rooms: Record<string, number>;
   }> = {};
 
+  const nameMapText: Record<string, any> = {};
   stagiaires.forEach((s: { id: string; nom: string }) => {
-    stats[s.id] = {
+    const entry = {
       nom: s.nom,
       present: 0,
       absent: 0,
@@ -957,19 +958,26 @@ async function buildBilanMessage(supabase: any): Promise<string> {
       total: 0,
       rooms: { "Triage": 0, "Piquage": 0, "Déchocage": 0, "Observation": 0 }
     };
+    stats[s.id] = entry;
+    nameMapText[cleanAscii(s.nom).trim().toLowerCase()] = entry;
   });
 
-  pointages.forEach((p: { stagiaire_id: string; statut: string; salle: string }) => {
-    if (stats[p.stagiaire_id]) {
-      stats[p.stagiaire_id].total++;
-      if (p.statut === "present") stats[p.stagiaire_id].present++;
-      else if (p.statut === "absent") stats[p.stagiaire_id].absent++;
+  pointages.forEach((p: { stagiaire_id: string; stagiaire_nom?: string; statut: string; salle: string }) => {
+    const target = stats[p.stagiaire_id] || (p.stagiaire_nom ? nameMapText[cleanAscii(p.stagiaire_nom).trim().toLowerCase()] : null);
+    if (target) {
+      target.total++;
+      if (p.statut === "present") target.present++;
+      else if (p.statut === "absent") target.absent++;
       else if (p.statut === "retard") {
-        stats[p.stagiaire_id].retard++;
-        stats[p.stagiaire_id].present++;
+        target.retard++;
+        target.present++;
       }
-      if (stats[p.stagiaire_id].rooms[p.salle] !== undefined && p.statut !== "absent") {
-        stats[p.stagiaire_id].rooms[p.salle]++;
+      if (p.statut !== "absent" && p.salle) {
+        const sClean = cleanAscii(p.salle).trim().toLowerCase();
+        if (sClean.includes("tri")) target.rooms["Triage"] = (target.rooms["Triage"] || 0) + 1;
+        else if (sClean.includes("piq")) target.rooms["Piquage"] = (target.rooms["Piquage"] || 0) + 1;
+        else if (sClean.includes("choc")) target.rooms["Déchocage"] = (target.rooms["Déchocage"] || 0) + 1;
+        else if (sClean.includes("obs")) target.rooms["Observation"] = (target.rooms["Observation"] || 0) + 1;
       }
     }
   });
@@ -1066,8 +1074,9 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
     rooms: Record<string, number>;
   }> = {};
 
+  const nameMapPdf: Record<string, any> = {};
   stagiaires.forEach((s: { id: string; nom: string }) => {
-    stats[s.id] = {
+    const entry = {
       nom: s.nom,
       present: 0,
       absent: 0,
@@ -1075,19 +1084,26 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
       total: 0,
       rooms: { "Triage": 0, "Piquage": 0, "Déchocage": 0, "Observation": 0 }
     };
+    stats[s.id] = entry;
+    nameMapPdf[cleanAscii(s.nom).trim().toLowerCase()] = entry;
   });
 
-  pointages.forEach((p: { stagiaire_id: string; statut: string; salle: string }) => {
-    if (stats[p.stagiaire_id]) {
-      stats[p.stagiaire_id].total++;
-      if (p.statut === "present") stats[p.stagiaire_id].present++;
-      else if (p.statut === "absent") stats[p.stagiaire_id].absent++;
+  pointages.forEach((p: { stagiaire_id: string; stagiaire_nom?: string; statut: string; salle: string }) => {
+    const target = stats[p.stagiaire_id] || (p.stagiaire_nom ? nameMapPdf[cleanAscii(p.stagiaire_nom).trim().toLowerCase()] : null);
+    if (target) {
+      target.total++;
+      if (p.statut === "present") target.present++;
+      else if (p.statut === "absent") target.absent++;
       else if (p.statut === "retard") {
-        stats[p.stagiaire_id].retard++;
-        stats[p.stagiaire_id].present++;
+        target.retard++;
+        target.present++;
       }
-      if (stats[p.stagiaire_id].rooms[p.salle] !== undefined && p.statut !== "absent") {
-        stats[p.stagiaire_id].rooms[p.salle]++;
+      if (p.statut !== "absent" && p.salle) {
+        const sClean = cleanAscii(p.salle).trim().toLowerCase();
+        if (sClean.includes("tri")) target.rooms["Triage"] = (target.rooms["Triage"] || 0) + 1;
+        else if (sClean.includes("piq")) target.rooms["Piquage"] = (target.rooms["Piquage"] || 0) + 1;
+        else if (sClean.includes("choc")) target.rooms["Déchocage"] = (target.rooms["Déchocage"] || 0) + 1;
+        else if (sClean.includes("obs")) target.rooms["Observation"] = (target.rooms["Observation"] || 0) + 1;
       }
     }
   });
@@ -1265,17 +1281,22 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
   curY -= (cardHeight + 18);
 
   // 4. Tableau d'emargement des stagiaires
+  // 4. Tableau d'emargement des stagiaires avec colonnes dediees par service
   const colX = {
-    num: 45,
-    nom: 65,
-    pointages: 195,
-    taux: 260,
-    details: 310,
-    salles: 400,
-    statut: 485
+    num: 44,
+    nom: 64,
+    pointages: 182,
+    taux: 224,
+    abs: 258,
+    ret: 284,
+    tri: 312,
+    piq: 352,
+    dec: 394,
+    obs: 436,
+    statut: 480
   };
 
-  const headerHeight = 20;
+  const headerHeight = 22;
   page.drawRectangle({
     x: 40,
     y: curY - headerHeight,
@@ -1284,13 +1305,17 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
     color: cNavy
   });
 
-  page.drawText("N°", { x: colX.num, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
-  page.drawText("NOM DU STAGIAIRE", { x: colX.nom, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
-  page.drawText("POINTAGES", { x: colX.pointages, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
-  page.drawText("TAUX", { x: colX.taux, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
-  page.drawText("ABS / RET", { x: colX.details, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
-  page.drawText("POSTES OCCUPES", { x: colX.salles, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
-  page.drawText("STATUT", { x: colX.statut, y: curY - 14, size: 7.5, font: fontBold, color: cWhite });
+  page.drawText("N°", { x: colX.num, y: curY - 15, size: 7, font: fontBold, color: cWhite });
+  page.drawText("NOM DU STAGIAIRE", { x: colX.nom, y: curY - 15, size: 7, font: fontBold, color: cWhite });
+  page.drawText("SEANCES", { x: colX.pointages, y: curY - 15, size: 6.5, font: fontBold, color: cWhite });
+  page.drawText("TAUX", { x: colX.taux, y: curY - 15, size: 6.5, font: fontBold, color: cWhite });
+  page.drawText("ABS", { x: colX.abs, y: curY - 15, size: 6.5, font: fontBold, color: cWhite });
+  page.drawText("RET", { x: colX.ret, y: curY - 15, size: 6.5, font: fontBold, color: cWhite });
+  page.drawText("TRIAGE", { x: colX.tri, y: curY - 15, size: 6.5, font: fontBold, color: rgb(0.65, 0.88, 1.0) });
+  page.drawText("PIQUAGE", { x: colX.piq, y: curY - 15, size: 6.5, font: fontBold, color: rgb(0.65, 1.0, 0.75) });
+  page.drawText("DECHOC.", { x: colX.dec, y: curY - 15, size: 6.5, font: fontBold, color: rgb(1.0, 0.7, 0.7) });
+  page.drawText("OBSERV.", { x: colX.obs, y: curY - 15, size: 6.5, font: fontBold, color: rgb(0.9, 0.75, 1.0) });
+  page.drawText("STATUT", { x: colX.statut, y: curY - 15, size: 7, font: fontBold, color: cWhite });
 
   curY -= headerHeight;
 
@@ -1313,35 +1338,43 @@ async function generateBilanPdf(supabase: any): Promise<{ bytes: Uint8Array; fil
 
     const yText = curY - 12;
     page.drawText(String(i + 1), { x: colX.num, y: yText, size: 7.5, font: fontRegular, color: cSlate });
-    page.drawText(cleanAscii(row.nom).slice(0, 24), { x: colX.nom, y: yText, size: 8, font: fontBold, color: cDark });
+    page.drawText(cleanAscii(row.nom).slice(0, 20), { x: colX.nom, y: yText, size: 7.5, font: fontBold, color: cDark });
+
+    const triCount = row.rooms["Triage"] || 0;
+    const piqCount = row.rooms["Piquage"] || 0;
+    const decCount = (row.rooms["Déchocage"] || 0) + (row.rooms["Dechocage"] || 0);
+    const obsCount = row.rooms["Observation"] || 0;
 
     if (row.total > 0) {
       const pct = Math.round((row.present / row.total) * 100);
-      page.drawText(`${row.present}/${row.total}`, { x: colX.pointages, y: yText, size: 7.5, font: fontRegular, color: cDark });
-      page.drawText(`${pct}%`, { x: colX.taux, y: yText, size: 7.5, font: fontBold, color: pct >= 80 ? cGreen : cRed });
-      page.drawText(`${row.absent} abs • ${row.retard} ret`, { x: colX.details, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+      page.drawText(`${row.present}/${row.total}`, { x: colX.pointages, y: yText, size: 7, font: fontRegular, color: cDark });
+      page.drawText(`${pct}%`, { x: colX.taux, y: yText, size: 7, font: fontBold, color: pct >= 80 ? cGreen : cRed });
+      page.drawText(String(row.absent), { x: colX.abs, y: yText, size: 7, font: row.absent > 0 ? fontBold : fontRegular, color: row.absent > 0 ? cRed : cSlate });
+      page.drawText(String(row.retard), { x: colX.ret, y: yText, size: 7, font: row.retard > 0 ? fontBold : fontRegular, color: row.retard > 0 ? rgb(0.85, 0.55, 0.1) : cSlate });
 
-      const roomParts: string[] = [];
-      if (row.rooms["Triage"] > 0) roomParts.push(`Tri:${row.rooms["Triage"]}`);
-      if (row.rooms["Piquage"] > 0) roomParts.push(`Piq:${row.rooms["Piquage"]}`);
-      if (row.rooms["Déchocage"] > 0) roomParts.push(`Dec:${row.rooms["Déchocage"]}`);
-      if (row.rooms["Observation"] > 0) roomParts.push(`Obs:${row.rooms["Observation"]}`);
-      const roomsText = roomParts.length > 0 ? roomParts.join(" ") : "-";
+      // Affichage distinct du nombre de fois dans chaque salle
+      page.drawText(triCount > 0 ? String(triCount) : "-", { x: colX.tri + 8, y: yText, size: 7.5, font: triCount > 0 ? fontBold : fontRegular, color: triCount > 0 ? cNavy : cSlate });
+      page.drawText(piqCount > 0 ? String(piqCount) : "-", { x: colX.piq + 8, y: yText, size: 7.5, font: piqCount > 0 ? fontBold : fontRegular, color: piqCount > 0 ? cNavy : cSlate });
+      page.drawText(decCount > 0 ? String(decCount) : "-", { x: colX.dec + 8, y: yText, size: 7.5, font: decCount > 0 ? fontBold : fontRegular, color: decCount > 0 ? cNavy : cSlate });
+      page.drawText(obsCount > 0 ? String(obsCount) : "-", { x: colX.obs + 8, y: yText, size: 7.5, font: obsCount > 0 ? fontBold : fontRegular, color: obsCount > 0 ? cNavy : cSlate });
 
-      page.drawText(cleanAscii(roomsText), { x: colX.salles, y: yText, size: 7.5, font: fontRegular, color: cNavy });
       page.drawText(row.absent === 0 ? "Conforme" : "A surveiller", {
         x: colX.statut,
         y: yText,
-        size: 7.5,
+        size: 7,
         font: fontBold,
         color: row.absent === 0 ? cGreen : rgb(0.85, 0.5, 0.1)
       });
     } else {
-      page.drawText("0/0", { x: colX.pointages, y: yText, size: 7.5, font: fontRegular, color: cSlate });
-      page.drawText("-", { x: colX.taux, y: yText, size: 7.5, font: fontRegular, color: cSlate });
-      page.drawText("-", { x: colX.details, y: yText, size: 7.5, font: fontRegular, color: cSlate });
-      page.drawText("En attente", { x: colX.salles, y: yText, size: 7, font: fontOblique, color: cSlate });
-      page.drawText("En attente", { x: colX.statut, y: yText, size: 7.5, font: fontRegular, color: cSlate });
+      page.drawText("0/0", { x: colX.pointages, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.taux, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.abs, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.ret, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.tri + 8, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.piq + 8, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.dec + 8, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("-", { x: colX.obs + 8, y: yText, size: 7, font: fontRegular, color: cSlate });
+      page.drawText("En attente", { x: colX.statut, y: yText, size: 7, font: fontOblique, color: cSlate });
     }
 
     curY -= rowHeight;
