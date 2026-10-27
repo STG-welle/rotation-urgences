@@ -554,27 +554,18 @@ serve(async (req: Request) => {
           }
           lastBotReplyByChat.set(chatId, now);
 
-          // CAS 1 : COMMANDE "bln" (Génération & Envoi du Document PDF Officiel)
+          // CAS 1 : COMMANDE "bln" (Envoi Direct du Document PDF Officiel sans légende texte)
           if (isBlnTrigger) {
-            console.log(`🤖 [BOT AUTORISÉ] Commande 'bln' reçue de ${senderName} ! Génération du PDF officiel...`);
+            console.log(`🤖 [BOT AUTORISÉ] Commande 'bln' reçue de ${senderName} ! Envoi direct du document PDF...`);
             try {
-              const { bytes, fileName, stats } = await generateBilanPdf(supabase);
+              const { bytes, fileName } = await generateBilanPdf(supabase);
               const sendUploadUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUpload/${greenApiToken}`;
               const blob = new Blob([bytes], { type: "application/pdf" });
 
-              const caption = `🏥 *CHUL • URGENCES PÉDIATRIQUES*\n` +
-                `📊 *Bilan d'Émargement & Assiduité (Officiel)*\n\n` +
-                `📈 *Assiduité globale du service : ${stats.globalRate}%*\n` +
-                `📝 *Séances d'émargement : ${stats.sessionsCount}*\n` +
-                `👥 *Stagiaires actifs : ${stats.stagiairesCount}*\n` +
-                `⚠️ *Cumul du mois : ${stats.totalAbsents} absence(s) • ⏱ ${stats.totalRetards} retard(s)*\n\n` +
-                `📄 _Veuillez trouver ci-joint le document PDF officiel certifié pour le service._`;
-
-              // Tentative 1 : avec quote
+              // Tentative 1 : avec quote (sans aucune description textuelle, uniquement le document PDF)
               const formWithQuote = new FormData();
               formWithQuote.append("chatId", chatId);
               formWithQuote.append("fileName", fileName);
-              formWithQuote.append("caption", caption);
               if (quotedMessageId) formWithQuote.append("quotedMessageId", quotedMessageId);
               formWithQuote.append("file", blob, fileName);
 
@@ -589,7 +580,6 @@ serve(async (req: Request) => {
                 const formNoQuote = new FormData();
                 formNoQuote.append("chatId", chatId);
                 formNoQuote.append("fileName", fileName);
-                formNoQuote.append("caption", caption);
                 formNoQuote.append("file", blob, fileName);
 
                 sendResp = await fetch(sendUploadUrl, {
@@ -599,7 +589,7 @@ serve(async (req: Request) => {
                 sendResult = await sendResp.json().catch(() => ({}));
               }
 
-              console.log("✅ Résultat Green API sendFileByUpload (PDF) :", JSON.stringify(sendResult));
+              console.log("✅ Résultat Green API sendFileByUpload (PDF brut) :", JSON.stringify(sendResult));
 
               return new Response(
                 JSON.stringify({
