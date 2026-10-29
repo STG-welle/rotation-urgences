@@ -1905,6 +1905,7 @@
         if (error) throw error;
         render();
         showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (${roomNames[validGroup]} le Lundi)` : `${s.nom} en Groupe Auto`, 'success');
+        scheduleAutoScreenshotUpdate();
       } catch (err) {
         console.warn('Erreur mise à jour groupe Supabase:', err);
         render();
@@ -1933,6 +1934,7 @@
             : `${sName} suspendu(e) (Le planning des autres stagiaires reste inchangé)`,
           'success'
         );
+        scheduleAutoScreenshotUpdate();
       } catch (err) {
         showToast('Erreur Supabase update', 'error');
       }
@@ -1965,6 +1967,7 @@
         render();
         const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
         showToast(`${s.nom} configuré(e) en ${teamDesc}`, 'success');
+        scheduleAutoScreenshotUpdate();
       } catch (err) {
         console.warn('Erreur mise à jour equipe Supabase:', err);
         render();
@@ -1997,6 +2000,7 @@
         if (error) throw error;
         render();
         showToast(`${s.nom} : Disponibilité mise à jour (${labelMap[validDispo]})`, 'success');
+        scheduleAutoScreenshotUpdate();
       } catch (err) {
         console.warn('Erreur mise à jour disponibilite Supabase:', err);
         render();
@@ -2037,6 +2041,7 @@
         render();
         const teamDesc = validEquipe === 'auto' ? 'Équipe Auto' : `Équipe ${validEquipe}`;
         showToast(`${trimmed} ajouté(e) (${teamDesc}${validGroup ? ', Groupe ' + validGroup : ''})`, 'success');
+        scheduleAutoScreenshotUpdate();
       } catch (err) {
         showToast('Erreur ajout stagiaire', 'error');
       }
@@ -2060,6 +2065,7 @@
         state.stagiaires = state.stagiaires.filter((s) => s.id !== id);
         render();
         showToast('Stagiaire supprimé', 'info');
+        scheduleAutoScreenshotUpdate();
       } catch (err) {
         showToast('Erreur suppression', 'error');
       }
@@ -2080,6 +2086,7 @@
         state.config.date_debut_stage = newDate;
         render();
         showToast('Date de début enregistrée', 'success');
+        scheduleAutoScreenshotUpdate();
       } catch (err) {
         showToast('Erreur enregistrement date', 'error');
       }
@@ -2089,6 +2096,58 @@
       render();
       showToast('Date enregistrée', 'success');
     }
+  }
+
+  // ============================================================================
+  // ACTUALISATION AUTOMATIQUE DE L'IMAGE WHATSAPP EN COULISSES
+  // ============================================================================
+  let autoScreenshotTimer = null;
+
+  function scheduleAutoScreenshotUpdate() {
+    if (autoScreenshotTimer) {
+      clearTimeout(autoScreenshotTimer);
+    }
+    // Temporisation de 3 secondes pour regrouper plusieurs modifications rapides consécutives
+    autoScreenshotTimer = setTimeout(async () => {
+      try {
+        console.log('📸 Déclenchement automatique de la capture du planning en coulisses...');
+        showToast('📸 Actualisation automatique de la photo WhatsApp en cours...', 'info');
+
+        let dispatchOk = false;
+        // 1. Déclenchement via l'Edge Function Supabase (sécurisé, sans exposer de token dans le navigateur)
+        try {
+          const edgeRes = await fetch(`${window.APP_CONFIG.SUPABASE_URL}/functions/v1/green-api-webhook?action=trigger_dispatch`, {
+            method: 'POST'
+          });
+          const edgeData = await edgeRes.json().catch(() => ({}));
+          if (edgeRes.ok && edgeData.success) {
+            dispatchOk = true;
+          }
+        } catch (edgeErr) {
+          console.warn('Tentative Edge Function dispatch ignorée, repli direct GitHub...', edgeErr);
+        }
+
+        // 2. Repli direct GitHub avec le token mémorisé si l'Edge Function n'a pas répondu
+        if (!dispatchOk) {
+          const token = localStorage.getItem('urgences_github_token') || window.APP_CONFIG.GITHUB_TOKEN;
+          const repo = window.APP_CONFIG.GITHUB_REPO || 'STG-welle/rotation-urgences';
+          const workflow = window.APP_CONFIG.GITHUB_WORKFLOW_ID || 'weekly-planning-screenshot.yml';
+          if (token) {
+            await fetch(`https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ ref: 'main' })
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('Auto-screenshot dispatch notice:', err);
+      }
+    }, 3000);
   }
 
   // ============================================================================
