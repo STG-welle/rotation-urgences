@@ -619,60 +619,67 @@ serve(async (req: Request) => {
             }
           }
 
-          // CAS 2 : COMMANDE "pln" (Planning hebdomadaire)
+          // CAS 2 : COMMANDE "pln" (Capture en direct à la demande)
           if (isPlnTrigger) {
-            console.log(`🤖 [BOT AUTORISÉ] Commande 'pln' validée pour ${senderName} ! Envoi du planning au chat ${chatId}...`);
-            const publicImageUrl = `https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png?t=${Date.now()}`;
-            const captionText = "Salut ! Voici de nouveau le planning des urgences pédiatriques de la semaine.\n\nBonne semaine !";
+            console.log(`🤖 [BOT AUTORISÉ] Commande 'pln' reçue de ${senderName} dans ${chatId}. Déclenchement de la capture en direct...`);
 
+            // 1. Message instantané de prise en compte dans la discussion demanderesse (personnelle ou groupe)
+            const sendMsgUrl = `${greenHost}/waInstance${greenInstanceId}/sendMessage/${greenApiToken}`;
             try {
-              const sendFileUrl = `${greenHost}/waInstance${greenInstanceId}/sendFileByUrl/${greenApiToken}`;
-
-              // Tentative 1 : avec citation du message demandeur
-              let sendResp = await fetch(sendFileUrl, {
+              await fetch(sendMsgUrl, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   chatId,
-                  urlFile: publicImageUrl,
-                  fileName: "planning-semaine.png",
-                  caption: captionText,
+                  message: "⏳ *Demande reçue !* Je lance la capture en direct de l'emploi du temps actuel du site...\n\n📸 La photo HD arrive ici dans environ 35 secondes !",
                   quotedMessageId
                 })
               });
-
-              let sendResult = await sendResp.json().catch(() => ({}));
-
-              // Si échec avec quotedMessageId, repli sans citation
-              if (!sendResp.ok || sendResult.error) {
-                console.warn("Retentative d'envoi sendFileByUrl sans quote...", sendResult);
-                sendResp = await fetch(sendFileUrl, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    chatId,
-                    urlFile: publicImageUrl,
-                    fileName: "planning-semaine.png",
-                    caption: captionText
-                  })
-                });
-                sendResult = await sendResp.json().catch(() => ({}));
-              }
-
-              console.log("✅ Résultat final Green API sendFileByUrl :", JSON.stringify(sendResult));
-
-              return new Response(
-                JSON.stringify({
-                  success: true,
-                  command: "pln",
-                  chatId,
-                  idMessage: sendResult.idMessage
-                }),
-                { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
-              );
-            } catch (sendErr) {
-              console.error("❌ Erreur expédition image via sendFileByUrl :", sendErr);
+            } catch (ackErr) {
+              console.warn("Échec message acquittement pln:", ackErr);
             }
+
+            // 2. Enregistrer la demande ciblée dans Supabase (bot_capture_requests)
+            try {
+              await supabase.from("bot_capture_requests").insert({
+                chat_id: chatId,
+                sender: senderName,
+                caption: "Voici l'emploi du temps actuel capturé en direct du site. Bonne journée !",
+                status: "pending"
+              });
+            } catch (insErr) {
+              console.warn("Échec insertion bot_capture_requests:", insErr);
+            }
+
+            // 3. Déclencher GitHub Actions pour photographier le site et envoyer le résultat exclusivement à CE chatId
+            const githubPat = Deno.env.get("GITHUB_PAT") || "";
+            if (githubPat) {
+              try {
+                await fetch(`https://api.github.com/repos/STG-welle/rotation-urgences/actions/workflows/weekly-planning-screenshot.yml/dispatches`, {
+                  method: "POST",
+                  headers: {
+                    "Authorization": `Bearer ${githubPat}`,
+                    "User-Agent": "rotation-urgences-supabase",
+                    "Accept": "application/vnd.github.v3+json",
+                    "Content-Type": "application/json"
+                  },
+                  body: JSON.stringify({ ref: "main" })
+                });
+                console.log(`🚀 Workflow de capture GitHub lancé pour expédition exclusive vers ${chatId} !`);
+              } catch (ghErr) {
+                console.error("Échec déclenchement workflow GitHub pln:", ghErr);
+              }
+            }
+
+            return new Response(
+              JSON.stringify({
+                success: true,
+                command: "pln",
+                mode: "on_demand_capture",
+                chatId
+              }),
+              { headers: { ...CORS_HEADERS, "Content-Type": "application/json" } }
+            );
           }
         }
 

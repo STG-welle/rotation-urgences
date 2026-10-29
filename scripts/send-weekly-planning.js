@@ -20,9 +20,37 @@ async function main() {
   // 1. Récupération des variables d'environnement
   const instanceId = process.env.GREEN_API_INSTANCE_ID;
   const apiToken = process.env.GREEN_API_TOKEN;
-  const chatId = process.env.WHATSAPP_CHAT_ID || '120363426696951541@g.us';
+  let chatId = process.env.WHATSAPP_CHAT_ID || '120363428929551454@g.us';
   const host = process.env.GREEN_API_HOST || 'https://7107.api.greenapi.com';
   const siteUrl = process.env.SITE_URL || 'https://stg-welle.github.io/rotation-urgences/';
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://ezpbmutbkuoudmyyozlr.supabase.co';
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'sb_publishable_U7-ao4uwjTorXXLeCyClBA_ZkytQqmE';
+
+  let customCaption = null;
+  let activeRequestId = null;
+
+  // Vérifier s'il y a une demande interactive ciblée (ex: commande 'pln' envoyée en privé par l'Admin)
+  try {
+    const queueRes = await fetch(`${supabaseUrl}/rest/v1/bot_capture_requests?status=eq.pending&order=created_at.desc&limit=1`, {
+      headers: {
+        'apikey': supabaseAnonKey,
+        'Authorization': `Bearer ${supabaseAnonKey}`
+      }
+    });
+    const queueData = await queueRes.json().catch(() => []);
+    if (Array.isArray(queueData) && queueData.length > 0) {
+      const item = queueData[0];
+      const ageMinutes = (Date.now() - new Date(item.created_at).getTime()) / (1000 * 60);
+      if (ageMinutes <= 10 && item.chat_id) {
+        chatId = item.chat_id;
+        activeRequestId = item.id;
+        if (item.caption) customCaption = item.caption;
+        console.log(`🎯 [DEMANDE CIBLÉE] Commande 'pln' de ${item.sender || 'utilisateur'} -> Expédition exclusive vers : ${chatId} (le groupe principal ne sera PAS dérangé)`);
+      }
+    }
+  } catch (qErr) {
+    console.warn('Vérification file de capture ignorée:', qErr.message);
+  }
 
   // Vérification de la configuration
   if (!instanceId || !apiToken || !chatId) {
@@ -114,7 +142,7 @@ async function main() {
 
   const defaultCaption = "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine prochaine est dispo ci-dessous.\n\nBonne semaine à tous !";
 
-  const captionText = process.env.WHATSAPP_CAPTION || defaultCaption;
+  const captionText = customCaption || process.env.WHATSAPP_CAPTION || defaultCaption;
 
   const formData = new FormData();
   formData.append('chatId', chatId);
@@ -134,8 +162,24 @@ async function main() {
     throw new Error(`Green API sendFileByUpload error (HTTP ${response.status}) : ${JSON.stringify(responseData)}`);
   }
 
-  console.log('🎉 SUCCÈS : Image du planning transmise au groupe WhatsApp !');
+  console.log('🎉 SUCCÈS : Image du planning transmise au chat cible !');
+  console.log(`   Destinataire : ${chatId}`);
   console.log(`   Message ID : ${responseData.idMessage || 'OK'}`);
+
+  if (activeRequestId) {
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/bot_capture_requests?id=eq.${activeRequestId}`, {
+        method: 'PATCH',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: 'completed' })
+      });
+      console.log(`✅ Demande ciblée #${activeRequestId} clôturée avec succès dans Supabase.`);
+    } catch (_) {}
+  }
 
   // 7. Sauvegarde automatique de la nouvelle capture sur GitHub main
   const githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
