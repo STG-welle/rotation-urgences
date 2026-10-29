@@ -621,7 +621,7 @@ serve(async (req: Request) => {
           // CAS 2 : COMMANDE "pln" (Planning hebdomadaire)
           if (isPlnTrigger) {
             console.log(`🤖 [BOT AUTORISÉ] Commande 'pln' validée pour ${senderName} ! Envoi du planning au chat ${chatId}...`);
-            const publicImageUrl = "https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png";
+            const publicImageUrl = `https://raw.githubusercontent.com/STG-welle/rotation-urgences/main/planning-semaine.png?t=${Date.now()}`;
             const captionText = "Salut ! Voici de nouveau le planning des urgences pédiatriques de la semaine.\n\nBonne semaine !";
 
             try {
