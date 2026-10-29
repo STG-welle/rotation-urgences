@@ -631,7 +631,7 @@ serve(async (req: Request) => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   chatId,
-                  message: "⏳ *Demande reçue !* Je lance la capture en direct de l'emploi du temps actuel du site...\n\n📸 La photo HD arrive ici dans environ 35 secondes !",
+                  message: "Demande reçue, veuillez patienter.",
                   quotedMessageId
                 })
               });
