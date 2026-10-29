@@ -136,6 +136,40 @@ async function main() {
 
   console.log('🎉 SUCCÈS : Image du planning transmise au groupe WhatsApp !');
   console.log(`   Message ID : ${responseData.idMessage || 'OK'}`);
+
+  // 7. Sauvegarde automatique de la nouvelle capture sur GitHub main
+  const githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
+  if (githubToken) {
+    try {
+      console.log('🔄 Sauvegarde automatique de la capture sur GitHub main...');
+      const getFileRes = await fetch('https://api.github.com/repos/STG-welle/rotation-urgences/contents/planning-semaine.png', {
+        headers: { 'Authorization': `Bearer ${githubToken}`, 'User-Agent': 'node', 'Accept': 'application/vnd.github.v3+json' }
+      });
+      const fileData = await getFileRes.json();
+      const currentSha = fileData.sha;
+
+      const fileBase64 = fileBuffer.toString('base64');
+      const putRes = await fetch('https://api.github.com/repos/STG-welle/rotation-urgences/contents/planning-semaine.png', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${githubToken}`, 'User-Agent': 'node', 'Accept': 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: 'chore: actualisation automatique de planning-semaine.png [skip ci]',
+          content: fileBase64,
+          sha: currentSha,
+          branch: 'main'
+        })
+      });
+      const putData = await putRes.json();
+      if (putRes.ok) {
+        console.log('✅ planning-semaine.png mis à jour avec succès sur GitHub !');
+      } else {
+        console.warn('⚠️ Échec mise à jour GitHub API :', putData.message || putData);
+      }
+    } catch (ghErr) {
+      console.warn('⚠️ Erreur mise à jour GitHub API :', ghErr.message);
+    }
+  }
+
   console.log('==================================================================');
 }
 
