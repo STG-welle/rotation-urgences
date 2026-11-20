@@ -375,10 +375,12 @@ serve(async (req: Request) => {
     const team1IsMorning = isEvenWeek;
 
     // Basculement 100% automatique selon les disponibilités horaires :
+    // - 'journee' : Présent en Journée Continue (07h30 - 17h00) tous les jours
     // - 'matin' : Rattaché automatiquement à l'équipe en Matinée cette semaine
     // - 'apres_midi' : Rattaché automatiquement à l'équipe en Après-midi cette semaine
     // - 'tous' : Reste dans son équipe de référence (s.equipe === '2' ? '2' : '1')
     function getEffectiveStudentTeam(s: typeof stagiaires[0], isEven: boolean): string {
+      if (s.disponibilite === "journee") return "journee";
       if (s.disponibilite === "matin") return isEven ? "1" : "2";
       if (s.disponibilite === "apres_midi") return isEven ? "2" : "1";
       if (s.equipe === "2") return "2";
@@ -386,8 +388,12 @@ serve(async (req: Request) => {
       return "1";
     }
 
-    const team1Members = stagiaires.filter((s) => getEffectiveStudentTeam(s, isEvenWeek) === "1");
-    const team2Members = stagiaires.filter((s) => getEffectiveStudentTeam(s, isEvenWeek) === "2");
+    const journeeMembers = stagiaires.filter((s) => s.disponibilite === "journee");
+    const activeJourneeMembers = journeeMembers.filter((s) => s.actif).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+    const absentJourneeMembers = journeeMembers.filter((s) => !s.actif).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+
+    const team1Members = stagiaires.filter((s) => s.disponibilite !== "journee" && getEffectiveStudentTeam(s, isEvenWeek) === "1");
+    const team2Members = stagiaires.filter((s) => s.disponibilite !== "journee" && getEffectiveStudentTeam(s, isEvenWeek) === "2");
     const hasTeam2 = team2Members.length > 0;
 
     const groupsTeam1 = buildCohortGroups(team1Members);
@@ -413,19 +419,79 @@ serve(async (req: Request) => {
       return assignment;
     }
 
+    function getJourneeWeeklySchedule(N: number, wNum: number) {
+      if (N === 0) return [];
+      const res: number[][] = [];
+      const dailyCounts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
+
+      for (let i = 0; i < N; i++) {
+        const targetDup = ((i + wNum) % 4 + 4) % 4;
+        const pool = SEQS_BY_DUP[targetDup];
+        const desiredStart = ((i + wNum) % 4 + 4) % 4;
+
+        let bestSeq: number[] | null = null;
+        let bestScore = Infinity;
+
+        for (const seq of pool) {
+          let score = 0;
+          if (seq[0] !== desiredStart) score += 2;
+          for (let d = 0; d < 5; d++) {
+            score += dailyCounts[d][seq[d]] * 10;
+          }
+          if (score < bestScore) {
+            bestScore = score;
+            bestSeq = seq;
+          }
+        }
+
+        if (!bestSeq && pool.length > 0) {
+          bestSeq = pool[0];
+        }
+
+        if (bestSeq) {
+          res.push(bestSeq);
+          for (let d = 0; d < 5; d++) dailyCounts[d][bestSeq[d]]++;
+        }
+      }
+      return res;
+    }
+
+    function getJourneeRoomAssignments(activeJ: typeof activeJourneeMembers, wIdx: number) {
+      const N = activeJ.length;
+      if (N === 0) return [[], [], [], []];
+      const wNum = Math.floor(wIdx / 5);
+      const dIdx = ((wIdx % 5) + 5) % 5;
+      const weeklyMatrix = getJourneeWeeklySchedule(N, wNum);
+      const assignment: Array<Array<typeof activeJ[0]>> = [[], [], [], []];
+      for (let i = 0; i < N; i++) {
+        const roomIdx = weeklyMatrix[i] ? weeklyMatrix[i][dIdx] : (i % 4);
+        assignment[roomIdx].push(activeJ[i]);
+      }
+      return assignment;
+    }
+
     function buildDynamicAssignments(teamMembers: typeof stagiaires) {
       const activeMembers = teamMembers.filter((s) => s.actif).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
       const absentMembers = teamMembers.filter((s) => !s.actif).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
       const roomAssigned = getDailyRoomAssignments(activeMembers, workDayIndex);
+      const journeeAssigned = getJourneeRoomAssignments(activeJourneeMembers, workDayIndex);
 
       return ROOMS.map((room) => {
         const activeInRoom = roomAssigned[room.id] || [];
+        const journeeInRoom = journeeAssigned[room.id] || [];
+        const absentInRoom = room.id === 0 ? [...absentMembers, ...absentJourneeMembers] : [];
+
+        const allActiveFormatted = [
+          ...activeInRoom.map((s) => s.nom),
+          ...journeeInRoom.map((s) => `${s.nom} (☀️ Journée 07h30-17h00)`)
+        ];
+
         return {
           room: room.name,
           emoji: room.emoji,
           role: room.role,
-          activeStudents: activeInRoom.map((s) => s.nom),
-          absentStudents: room.id === 0 ? absentMembers.map((s) => s.nom) : []
+          activeStudents: allActiveFormatted,
+          absentStudents: absentInRoom.map((s) => s.nom)
         };
       });
     }
