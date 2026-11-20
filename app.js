@@ -1125,7 +1125,7 @@
       if (countJournee > 0) badge2.title = `${regularCount2} équipe 2 + ${countJournee} en journée continue`;
     }
     if (teamLabel) {
-      teamLabel.textContent = `actifs en Équipe ${state.selectedEquipe}${countJournee > 0 ? ` (dont ${countJournee} en journée continue)` : ''}`;
+      teamLabel.textContent = `stagiaires actifs (Équipe ${state.selectedEquipe})`;
     }
 
     if (schedule?.shifts) {
@@ -1874,7 +1874,7 @@
                 }
               </div>
               <div class="text-[11px] ${s.actif ? (isJournee ? 'text-amber-800 font-bold' : 'text-emerald-700 font-semibold') : 'text-slate-500 font-semibold'} mt-0.5">
-                ${s.actif ? (isJournee ? '● Présent • Journée continue' : '● Présent • En rotation active') : '○ Absent • Exclu temporairement'}
+                ${s.actif ? (isJournee ? '● Présent • Journée continue' : '● Présent') : '○ Absent'}
               </div>
             </div>
           </div>
@@ -1936,12 +1936,12 @@
           <div class="flex items-center gap-2 p-2 rounded-xl ${isJournee ? 'bg-amber-50/90 border-amber-300 text-amber-950' : 'bg-blue-50/90 border-blue-200 text-blue-900'} text-xs font-bold border">
             <span class="text-sm shrink-0">🔄</span>
             <span class="truncate sm:whitespace-normal">
-              <strong>${isJournee ? 'Journée continue :' : 'Adaptation 100% Automatique :'}</strong> ${
+              <strong>${isJournee ? 'Journée continue :' : 'Adaptation automatique :'}</strong> ${
                 isJournee
-                  ? `En poste toute la journée. Fait le tour des 4 salles de jour en jour et collabore avec les deux équipes.`
+                  ? `En poste toute la journée en rotation sur les 4 salles.`
                   : isFixedSlot
-                  ? `Contrainte <strong>${dispo === 'matin' ? 'Matin uniquement' : 'Après-midi uniquement'}</strong>. Rattaché(e) à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.`
-                  : `Configuré(e) en <strong>Équipe Auto</strong>. Rattaché(e) à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.`
+                  ? `Contrainte <strong>${dispo === 'matin' ? 'Matin uniquement' : 'Après-midi uniquement'}</strong>. Rattaché(e) à l'<strong>Équipe ${effectiveTeam}</strong> cette semaine.`
+                  : `Rattaché(e) à l'<strong>Équipe ${effectiveTeam}</strong> cette semaine.`
               }
             </span>
           </div>
@@ -2025,16 +2025,16 @@
         const { error } = await state.client.from('stagiaires').update({ groupe: validGroup }).eq('id', id);
         if (error) throw error;
         render();
-        showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (${roomNames[validGroup]} le Lundi)` : `${s.nom} en Groupe Auto`, 'success');
+        showToast(validGroup ? `${s.nom} : Groupe ${validGroup}` : `${s.nom} : Groupe Auto`, 'success');
       } catch (err) {
         console.warn('Erreur mise à jour groupe Supabase:', err);
         render();
-        showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup} (Local)` : `${s.nom} en Groupe Auto`, 'info');
+        showToast(validGroup ? `${s.nom} : Groupe ${validGroup} (Local)` : `${s.nom} : Groupe Auto`, 'info');
       }
     } else {
       saveDemoStagiaires();
       render();
-      showToast(validGroup ? `${s.nom} assigné(e) au Groupe ${validGroup}` : `${s.nom} en Groupe Auto`, 'success');
+      showToast(validGroup ? `${s.nom} : Groupe ${validGroup}` : `${s.nom} : Groupe Auto`, 'success');
     }
   }
 
@@ -2050,8 +2050,8 @@
         render();
         showToast(
           newStatus
-            ? `${sName} réintégré(e) (Présent)`
-            : `${sName} suspendu(e) (Le planning des autres stagiaires reste inchangé)`,
+            ? `${sName} marqué(e) présent(e)`
+            : `${sName} marqué(e) absent(e)`,
           'success'
         );
       } catch (err) {
@@ -2064,8 +2064,8 @@
         render();
         showToast(
           newStatus
-            ? `${sName} réintégré(e)`
-            : `${sName} suspendu(e) (Planning protégé)`,
+            ? `${sName} marqué(e) présent(e)`
+            : `${sName} marqué(e) absent(e)`,
           'success'
         );
       }
