@@ -967,7 +967,7 @@
                     <span class="w-1.5 h-1.5 rounded-full ${rc.dot} shrink-0"></span>
                     <span class="truncate">${escapeHtml(s.nom)}</span>
                   </div>
-                  ${s.disponibilite === 'journee' ? '<span class="text-[8px] font-extrabold text-amber-800 shrink-0">☀️ Journée</span>' : ''}
+                  ${s.disponibilite === 'journee' ? '<span class="text-[8px] font-extrabold text-amber-800 shrink-0">Journée continue</span>' : ''}
                 </div>
               `)
               .join('');
@@ -1296,13 +1296,13 @@
       }
 
       const badgeHtml = isJournee
-        ? `<span class="text-[10px] text-amber-950 font-black bg-amber-100 border border-amber-300 px-2 py-0.5 rounded shadow-2xs">☀️ Journée Continue (07h30 - 17h00) • Tous les jours</span>`
+        ? `<span class="text-[10px] text-amber-950 font-black bg-amber-100 border border-amber-300 px-2 py-0.5 rounded shadow-2xs">Journée continue</span>`
         : `<span class="text-[10px] text-blue-900 font-bold bg-blue-100 border border-blue-200 px-1.5 py-0.5 rounded">Équipe ${studentEquipe} • ${studentSchedule.currentTeamShift?.badgeLabel || ''}${found.disponibilite && found.disponibilite !== 'tous' ? ' (Auto)' : ''}</span>`;
 
       banner.classList.remove('hidden');
       banner.innerHTML = `
         <div class="flex items-center gap-3 min-w-0">
-          <div class="w-9 h-9 rounded-lg ${isTodayWeekend ? 'bg-slate-200 text-slate-700' : (isJournee ? 'bg-amber-500 text-slate-950' : 'bg-blue-700 text-white')} font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs border ${isJournee ? 'border-amber-600' : 'border-blue-800'}">
+          <div class="w-9 h-9 rounded-lg ${isTodayWeekend ? 'bg-slate-200 text-slate-700' : (isJournee ? 'bg-amber-600 text-white' : 'bg-blue-700 text-white')} font-bold flex items-center justify-center text-xs shrink-0 shadow-2xs border ${isJournee ? 'border-amber-700' : 'border-blue-800'}">
             ${getInitials(found.nom)}
           </div>
           <div class="min-w-0">
@@ -1520,7 +1520,7 @@
                   <span class="text-xs ${isMatch ? 'font-black text-amber-950' : 'font-semibold'} truncate">
                     ${escapeHtml(student.nom)}
                   </span>
-                  ${student.disponibilite === 'journee' ? '<span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 shrink-0">☀️ Journée</span>' : ''}
+                  ${student.disponibilite === 'journee' ? '<span class="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 shrink-0">Journée continue</span>' : ''}
                 </div>
                 ${isMatch ? '<span class="text-[9px] bg-amber-600 text-white font-bold px-1.5 py-0.5 rounded uppercase tracking-wider">Votre poste</span>' : ''}
               </div>
@@ -1728,7 +1728,7 @@
               <span class="truncate text-[11px] sm:text-xs md:text-sm ${isMatch ? 'text-amber-950 font-black' : ''}">
                 ${escapeHtml(student.nom)}
               </span>
-              ${student.disponibilite === 'journee' ? '<span class="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 shrink-0">☀️ Journée</span>' : ''}
+              ${student.disponibilite === 'journee' ? '<span class="text-[8px] sm:text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-100 text-amber-900 border border-amber-300 shrink-0">Journée continue</span>' : ''}
             </div>
           </td>
           ${cellsHtml}
@@ -1865,7 +1865,7 @@
                     ? 'bg-indigo-100 text-indigo-900'
                     : 'bg-blue-100 text-blue-900'
                 }">
-                  ${isJournee ? '☀️ Journée Continue (07h30 - 17h00)' : `En poste : Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})`}
+                  ${isJournee ? 'Journée continue' : `En poste : Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})`}
                 </span>
                 ${
                   (!isJournee && (isAutoTeam || isFixedSlot))
@@ -1874,7 +1874,7 @@
                 }
               </div>
               <div class="text-[11px] ${s.actif ? (isJournee ? 'text-amber-800 font-bold' : 'text-emerald-700 font-semibold') : 'text-slate-500 font-semibold'} mt-0.5">
-                ${s.actif ? (isJournee ? '☀️ Présent • Journée continue tous les jours' : '● Présent • En rotation active') : '○ Absent • Exclu temporairement'}
+                ${s.actif ? (isJournee ? '● Présent • Journée continue' : '● Présent • En rotation active') : '○ Absent • Exclu temporairement'}
               </div>
             </div>
           </div>
@@ -1912,7 +1912,7 @@
               <option value="tous" ${dispo === 'tous' ? 'selected' : ''}>Matin & Après-midi (Tous)</option>
               <option value="matin" ${dispo === 'matin' ? 'selected' : ''}>Matin uniquement</option>
               <option value="apres_midi" ${dispo === 'apres_midi' ? 'selected' : ''}>Après-midi uniquement</option>
-              <option value="journee" ${dispo === 'journee' ? 'selected' : ''}>☀️ Journée continue (07h30 - 17h00)</option>
+              <option value="journee" ${dispo === 'journee' ? 'selected' : ''}>Journée continue</option>
             </select>
           </div>
 
@@ -1934,11 +1934,11 @@
           (isAutoTeam || isFixedSlot || isJournee)
             ? `
           <div class="flex items-center gap-2 p-2 rounded-xl ${isJournee ? 'bg-amber-50/90 border-amber-300 text-amber-950' : 'bg-blue-50/90 border-blue-200 text-blue-900'} text-xs font-bold border">
-            <span class="text-sm shrink-0">${isJournee ? '☀️' : '🔄'}</span>
+            <span class="text-sm shrink-0">🔄</span>
             <span class="truncate sm:whitespace-normal">
-              <strong>${isJournee ? 'Journée Continue (07h30 - 17h00) :' : 'Adaptation 100% Automatique :'}</strong> ${
+              <strong>${isJournee ? 'Journée continue :' : 'Adaptation 100% Automatique :'}</strong> ${
                 isJournee
-                  ? `En poste toute la journée (07h30 à 17h00). Fait le tour des 4 salles de jour en jour et collabore avec les deux équipes.`
+                  ? `En poste toute la journée. Fait le tour des 4 salles de jour en jour et collabore avec les deux équipes.`
                   : isFixedSlot
                   ? `Contrainte <strong>${dispo === 'matin' ? 'Matin uniquement' : 'Après-midi uniquement'}</strong>. Rattaché(e) à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.`
                   : `Configuré(e) en <strong>Équipe Auto</strong>. Rattaché(e) à l'<strong>Équipe ${effectiveTeam} (${teamShiftInfo.badgeLabel})</strong> cette semaine.`
@@ -2110,7 +2110,7 @@
       tous: 'Matin & Après-midi',
       matin: 'Matinée uniquement',
       apres_midi: 'Après-midi uniquement',
-      journee: '☀️ Journée continue (07h30 - 17h00)'
+      journee: 'Journée continue'
     };
 
     if (state.client && state.isSupabaseConnected) {
@@ -2262,7 +2262,7 @@
         } else {
           ra.students.forEach((st) => {
             const isJ = st.disponibilite === 'journee';
-            text += `• ${st.nom}${isJ ? ' _(☀️ Journée 07h30-17h00)_' : ''}\n`;
+            text += `• ${st.nom}${isJ ? ' _(Journée continue)_' : ''}\n`;
           });
           text += `\n`;
         }
@@ -2290,7 +2290,7 @@
         } else {
           ra.students.forEach((st) => {
             const isJ = st.disponibilite === 'journee';
-            text += `• ${st.nom}${isJ ? ' _(☀️ Journée 07h30-17h00)_' : ''}\n`;
+            text += `• ${st.nom}${isJ ? ' _(Journée continue)_' : ''}\n`;
           });
           text += `\n`;
         }
@@ -2308,7 +2308,7 @@
         } else {
           ra.students.forEach((st) => {
             const isJ = st.disponibilite === 'journee';
-            text += `• ${st.nom}${isJ ? ' _(☀️ Journée 07h30-17h00)_' : ''}\n`;
+            text += `• ${st.nom}${isJ ? ' _(Journée continue)_' : ''}\n`;
           });
           text += `\n`;
         }
@@ -2349,7 +2349,7 @@
         text += `  ⚪ *R.A.S* (Reprise du service lundi matin)\n\n`;
       } else if (!hasTeam2) {
         d1.roomAssignments.forEach((ra) => {
-          const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (☀️ Journée)' : ''}`).join(' & ');
+          const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (Journée continue)' : ''}`).join(' & ');
           text += `  ${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name} :* ${names || '(aucun)'}\n`;
         });
         text += `\n`;
@@ -2361,13 +2361,13 @@
 
         text += `  *${morningDay.name} :*\n`;
         morningDay.day.roomAssignments.forEach((ra) => {
-          const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (☀️ Journée)' : ''}`).join(' & ');
+          const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (Journée continue)' : ''}`).join(' & ');
           if (names) text += `    ${ra.emoji ? ra.emoji + ' ' : ''}${ra.name} : ${names}\n`;
         });
 
         text += `  *${afternoonDay.name} :*\n`;
         afternoonDay.day.roomAssignments.forEach((ra) => {
-          const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (☀️ Journée)' : ''}`).join(' & ');
+          const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (Journée continue)' : ''}`).join(' & ');
           if (names) text += `    ${ra.emoji ? ra.emoji + ' ' : ''}${ra.name} : ${names}\n`;
         });
         text += `\n`;

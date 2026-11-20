@@ -483,7 +483,7 @@ serve(async (req: Request) => {
 
         const allActiveFormatted = [
           ...activeInRoom.map((s) => s.nom),
-          ...journeeInRoom.map((s) => `${s.nom} (☀️ Journée 07h30-17h00)`)
+          ...journeeInRoom.map((s) => `${s.nom} (Journée continue)`)
         ];
 
         return {
