@@ -17,6 +17,17 @@ async function main() {
   console.log('🤖 BOT WHATSAPP : CAPTURE & DIFFUSION HEBDOMADAIRE DU PLANNING');
   console.log('==================================================================');
 
+  // Neutralisation immédiate du déclencheur cron natif de GitHub Actions ('schedule').
+  // En raison de la saturation des runners GitHub le dimanche soir, l'événement 'schedule'
+  // accuse 2 à 4 heures de retard (exécuté vers 22h-23h) et crée un doublon indésirable.
+  // L'envoi officiel et ponctuel à 19h00 pile est pris en charge par Supabase pg_cron (workflow_dispatch).
+  if (process.env.GITHUB_EVENT_NAME === 'schedule') {
+    console.log('🛑 [DÉCLENCHEUR SCHEDULE BLOQUÉ] Le déclencheur cron natif de GitHub Actions est ignoré pour éviter l\'envoi tardif en doublon (22h-23h).');
+    console.log('   L\'envoi du planning est géré exclusivement à 19h00 pile par Supabase pg_cron (workflow_dispatch).');
+    console.log('==================================================================');
+    return;
+  }
+
   // 1. Récupération des variables d'environnement
   const instanceId = process.env.GREEN_API_INSTANCE_ID;
   const apiToken = process.env.GREEN_API_TOKEN;
@@ -62,6 +73,40 @@ async function main() {
     console.error('  - GREEN_API_HOST        (optionnel, par défaut : https://7107.api.greenapi.com)');
     console.error('  - SITE_URL              (optionnel, par défaut : https://stg-welle.github.io/rotation-urgences/)');
     process.exit(1);
+  }
+
+  // Calcul de la date du jour au fuseau horaire de Libreville (UTC+1)
+  const librevilleDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Africa/Libreville',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(new Date());
+  const weeklyDispatchKey = `weekly_${librevilleDate}`;
+
+  const isMainGroup = chatId === (process.env.WHATSAPP_CHAT_ID || '120363428929551454@g.us');
+  const isForce = process.env.FORCE_SEND === 'true' || process.env.FORCE_SEND === true;
+
+  // Contrôle anti-doublon strict (Idempotence pour l'envoi hebdomadaire au groupe principal)
+  if (isMainGroup && !activeRequestId && !isForce) {
+    try {
+      const checkRes = await fetch(`${supabaseUrl}/rest/v1/whatsapp_dispatch_history?dispatch_date=eq.${weeklyDispatchKey}&status=eq.sent&limit=1`, {
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`
+        }
+      });
+      const checkData = await checkRes.json().catch(() => []);
+      if (Array.isArray(checkData) && checkData.length > 0) {
+        console.log(`🛑 [ANTI-DOUBLON STRICT] Le planning hebdomadaire pour le ${librevilleDate} a DÉJÀ été envoyé aujourd'hui.`);
+        console.log(`   Destinataire principal (${chatId}) déjà notifié (Message ID: ${checkData[0].whatsapp_message_id || 'OK'}).`);
+        console.log(`   Envoi annulé avec succès pour éviter tout doublon dans le groupe WhatsApp.`);
+        console.log('==================================================================');
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('⚠️ Vérification anti-doublon ignorée :', checkErr.message);
+    }
   }
 
   // Chargement de Playwright
@@ -165,6 +210,32 @@ async function main() {
   console.log('🎉 SUCCÈS : Image du planning transmise au chat cible !');
   console.log(`   Destinataire : ${chatId}`);
   console.log(`   Message ID : ${responseData.idMessage || 'OK'}`);
+
+  // Enregistrement du verrou anti-doublon dans Supabase si diffusion au groupe principal
+  if (isMainGroup && !activeRequestId) {
+    try {
+      await fetch(`${supabaseUrl}/rest/v1/whatsapp_dispatch_history`, {
+        method: 'POST',
+        headers: {
+          'apikey': supabaseAnonKey,
+          'Authorization': `Bearer ${supabaseAnonKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify({
+          dispatch_date: weeklyDispatchKey,
+          message_text: `Planning hebdomadaire (image capture) - Semaine du ${librevilleDate}`,
+          whatsapp_message_id: responseData.idMessage || 'OK',
+          gateway: 'Green API',
+          source: 'github_actions_weekly',
+          status: 'sent'
+        })
+      });
+      console.log(`📝 Verrou anti-doublon enregistré dans Supabase (${weeklyDispatchKey}).`);
+    } catch (historyErr) {
+      console.warn('⚠️ Enregistrement historique ignoré :', historyErr.message);
+    }
+  }
 
   if (activeRequestId) {
     try {
