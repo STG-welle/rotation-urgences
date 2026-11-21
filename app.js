@@ -1898,11 +1898,21 @@
           <!-- Sélecteur d'équipe -->
           <div class="flex flex-col gap-0.5">
             <span class="text-[9px] font-black uppercase tracking-wider text-slate-500">Équipe</span>
-            <select data-admin-equipe="${s.id}" ${isJournee ? 'disabled' : ''} class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs ${isJournee ? 'opacity-60 cursor-not-allowed' : ''}" title="${isJournee ? 'En journée continue (collabore avec les deux équipes)' : 'Équipe d\'affectation'}">
-              <option value="auto" ${baseTeam === 'auto' ? 'selected' : ''}>🔄 Équipe Auto</option>
-              <option value="1" ${baseTeam === '1' ? 'selected' : ''}>Équipe 1</option>
-              <option value="2" ${baseTeam === '2' ? 'selected' : ''}>Équipe 2</option>
-            </select>
+            ${
+              isJournee
+                ? `
+              <select data-admin-equipe="${s.id}" disabled class="text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-not-allowed pointer-events-none shadow-none" title="En journée continue (transversal aux 2 équipes)">
+                <option value="transversal" selected>Transversal (Équipes 1 & 2)</option>
+              </select>
+              `
+                : `
+              <select data-admin-equipe="${s.id}" class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs" title="Équipe d'affectation">
+                <option value="auto" ${baseTeam === 'auto' ? 'selected' : ''}>🔄 Équipe Auto</option>
+                <option value="1" ${baseTeam === '1' ? 'selected' : ''}>Équipe 1</option>
+                <option value="2" ${baseTeam === '2' ? 'selected' : ''}>Équipe 2</option>
+              </select>
+              `
+            }
           </div>
 
           <!-- Sélecteur de créneau horaire -->
@@ -1965,6 +1975,22 @@
       sel.addEventListener('change', async () => {
         const id = sel.getAttribute('data-admin-dispo');
         const val = sel.value;
+        const equipeSel = document.querySelector(`[data-admin-equipe="${id}"]`);
+        if (equipeSel) {
+          if (val === 'journee') {
+            equipeSel.disabled = true;
+            equipeSel.className = 'text-xs font-bold bg-slate-100 text-slate-400 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-not-allowed pointer-events-none shadow-none';
+            equipeSel.innerHTML = '<option value="transversal" selected>Transversal (Équipes 1 & 2)</option>';
+          } else {
+            equipeSel.disabled = false;
+            equipeSel.className = 'text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs';
+            equipeSel.innerHTML = `
+              <option value="auto">🔄 Équipe Auto</option>
+              <option value="1">Équipe 1</option>
+              <option value="2">Équipe 2</option>
+            `;
+          }
+        }
         await changeStagiaireDisponibilite(id, val);
       });
     });
@@ -2513,6 +2539,26 @@
       }
     });
 
+    const newDispoSelect = document.getElementById('admin-new-dispo-select');
+    const newEquipeSelect = document.getElementById('admin-new-equipe-select');
+    if (newDispoSelect && newEquipeSelect) {
+      newDispoSelect.addEventListener('change', () => {
+        if (newDispoSelect.value === 'journee') {
+          newEquipeSelect.disabled = true;
+          newEquipeSelect.className = 'bg-slate-100 text-slate-400 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium focus:outline-none cursor-not-allowed pointer-events-none shadow-none';
+          newEquipeSelect.innerHTML = '<option value="transversal" selected>Transversal (Équipes 1 & 2)</option>';
+        } else {
+          newEquipeSelect.disabled = false;
+          newEquipeSelect.className = 'bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600 cursor-pointer shadow-2xs';
+          newEquipeSelect.innerHTML = `
+            <option value="auto" selected>Équipe Auto (Équilibrée)</option>
+            <option value="1">Équipe 1</option>
+            <option value="2">Équipe 2</option>
+          `;
+        }
+      });
+    }
+
     document.getElementById('admin-add-form')?.addEventListener('submit', async (e) => {
       e.preventDefault();
       const nameInput = document.getElementById('admin-new-name-input');
@@ -2521,13 +2567,15 @@
       const dispoSelect = document.getElementById('admin-new-dispo-select');
       if (nameInput && nameInput.value.trim()) {
         const groupVal = groupSelect ? groupSelect.value : '';
-        const equipeVal = equipeSelect ? equipeSelect.value : 'auto';
+        const equipeVal = (dispoSelect && dispoSelect.value === 'journee') ? 'auto' : (equipeSelect ? equipeSelect.value : 'auto');
         const dispoVal = dispoSelect ? dispoSelect.value : 'tous';
         await addStagiaire(nameInput.value.trim(), groupVal, equipeVal, dispoVal);
         nameInput.value = '';
         if (groupSelect) groupSelect.value = '';
-        if (dispoSelect) dispoSelect.value = 'tous';
-        if (equipeSelect) equipeSelect.value = 'auto';
+        if (dispoSelect) {
+          dispoSelect.value = 'tous';
+          dispoSelect.dispatchEvent(new Event('change'));
+        }
       }
     });
 
