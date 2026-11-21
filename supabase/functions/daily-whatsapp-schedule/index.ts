@@ -847,6 +847,10 @@ FORMAT EXACT REQUIS :
 
 • NomG
 • NomH
+
+─────────────────────
+💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._
+
 Consignes strictes :
 1. N'ajoute AUCUNE description de rôle sous les salles.
 2. Ne mets PAS les lettres de groupe comme "(Groupe A)". Affiche seulement "🔵 *Triage*", "🟢 *Piquage*", "🔴 *Déchocage*", "🟣 *Observation*".
@@ -994,6 +998,8 @@ function generateFallbackTemplate(ctx: {
     });
   }
 
+  msg += `─────────────────────\n`;
+  msg += `💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._`;
   return msg.trim();
 }
 
