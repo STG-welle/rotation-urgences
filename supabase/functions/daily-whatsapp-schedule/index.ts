@@ -538,11 +538,11 @@ serve(async (req: Request) => {
       whatsappMessage = generateFallbackTemplate(scheduleContext);
     }
 
-    // Ajout systématique du lien vers le site si manquant
-    const SITE_URL = "https://stg-welle.github.io/rotation-urgences/";
-    if (!whatsappMessage.includes("stg-welle.github.io/rotation-urgences")) {
-      whatsappMessage = whatsappMessage.trim() + `\n\n🌐 *Planning complet de la semaine :*\n${SITE_URL}`;
-    }
+    // Nettoyage de tout lien vers le site si présent
+    whatsappMessage = whatsappMessage
+      .replace(/\n*🌐\s*\*Planning complet de la semaine\s*:\*\s*\n*https:\/\/stg-welle\.github\.io\/rotation-urgences\/?/gi, "")
+      .replace(/\n*https:\/\/stg-welle\.github\.io\/rotation-urgences\/?/gi, "")
+      .trim();
 
     // 10. Envoi WhatsApp avec verrou anti-doublon (Idempotence)
     // Empêche formellement qu'un message ne soit envoyé plus d'une fois le même jour
@@ -742,10 +742,7 @@ Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format :
 *Date : ${ctx.date}*
 
 ⚪ *R.A.S*
-_Reprise du service lundi matin._
-
-🌐 *Planning complet de la semaine :*
-https://stg-welle.github.io/rotation-urgences/`;
+_Reprise du service lundi matin._`;
   } else if (!ctx.hasTeam2) {
     const singleTeam = ctx.morningTeam.name === "Équipe 1" ? ctx.morningTeam : ctx.afternoonTeam;
     prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
@@ -782,9 +779,6 @@ ${singleTeam.emoji} *${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toU
 
 • Nom1
 • Nom2
-
-🌐 *Planning complet de la semaine :*
-https://stg-welle.github.io/rotation-urgences/
 
 Consignes strictes :
 1. N'ajoute AUCUNE description de rôle sous les salles.
@@ -853,13 +847,6 @@ FORMAT EXACT REQUIS :
 
 • NomG
 • NomH
-
-─────────────────────
-💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._
-
-🌐 *Planning complet de la semaine :*
-https://stg-welle.github.io/rotation-urgences/
-
 Consignes strictes :
 1. N'ajoute AUCUNE description de rôle sous les salles.
 2. Ne mets PAS les lettres de groupe comme "(Groupe A)". Affiche seulement "🔵 *Triage*", "🟢 *Piquage*", "🔴 *Déchocage*", "🟣 *Observation*".
@@ -1007,10 +994,7 @@ function generateFallbackTemplate(ctx: {
     });
   }
 
-  msg += `─────────────────────\n`;
-  msg += `💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._\n\n`;
-  msg += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/`;
-  return msg;
+  return msg.trim();
 }
 
 // ==============================================================================

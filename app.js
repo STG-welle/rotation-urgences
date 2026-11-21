@@ -2341,8 +2341,7 @@
       });
     }
 
-    text += `🌐 *Planning complet de la semaine :*\nhttps://stg-welle.github.io/rotation-urgences/`;
-    copyTextToClipboard(text, 'Planning du jour copié !');
+    copyTextToClipboard(text.trim(), 'Planning du jour copié !');
     closeModal('whatsapp-modal');
   }
 
