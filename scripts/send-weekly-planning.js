@@ -185,7 +185,9 @@ async function main() {
   const fileBuffer = fs.readFileSync(outputPath);
   const fileBlob = new Blob([fileBuffer], { type: 'image/png' });
 
-  const defaultCaption = "Bonsoir l'équipe ! Le planning des urgences pédiatriques pour la semaine prochaine est dispo ci-dessous.\n\nBonne semaine à tous !";
+  const hourLibreville = (new Date().getUTCHours() + 1) % 24;
+  const greeting = (hourLibreville >= 18 || hourLibreville < 5) ? "Bonsoir l'équipe !" : "Bonjour l'équipe !";
+  const defaultCaption = `${greeting} Le planning des urgences pédiatriques pour la semaine prochaine est disponible ci-dessous.\n\nBonne semaine à tous !`;
 
   const captionText = customCaption || process.env.WHATSAPP_CAPTION || defaultCaption;
 

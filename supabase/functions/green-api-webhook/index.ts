@@ -641,10 +641,14 @@ serve(async (req: Request) => {
 
             // 2. Enregistrer la demande ciblée dans Supabase (bot_capture_requests)
             try {
+              const hourLibreville = (new Date().getUTCHours() + 1) % 24;
+              const greeting = (hourLibreville >= 18 || hourLibreville < 5) ? "Bonsoir l'équipe !" : "Bonjour l'équipe !";
+              const plnCaption = `${greeting} Voici l'emploi du temps des urgences pédiatriques pour la semaine prochaine.\n\nBonne semaine à tous !`;
+
               await supabase.from("bot_capture_requests").insert({
                 chat_id: chatId,
                 sender: senderName,
-                caption: "Voici l'emploi du temps actuel capturé en direct du site. Bonne journée !",
+                caption: plnCaption,
                 status: "pending"
               });
             } catch (insErr) {
