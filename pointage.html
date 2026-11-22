@@ -90,11 +90,17 @@
         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-2">Choisir le poste</span>
         <div class="grid grid-cols-2 gap-2">
           <button id="btn-shift-matin" class="p-3 rounded-xl border-2 font-extrabold text-sm flex flex-col items-center justify-center gap-1 transition-all tap-target">
-            <span class="flex items-center gap-1.5 text-base">☀️ <span>Matinée</span></span>
+            <span class="flex items-center gap-1.5 text-base">
+              <svg class="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path stroke-linecap="round" d="M12 1v2m0 18v2M4.22 4.22l1.42 1.42m12.72 12.72l1.42 1.42M1 12h2m18 0h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+              <span>Matinée</span>
+            </span>
             <span class="text-xs opacity-80 font-semibold">07h30 – 12h00</span>
           </button>
           <button id="btn-shift-aprem" class="p-3 rounded-xl border-2 font-extrabold text-sm flex flex-col items-center justify-center gap-1 transition-all tap-target">
-            <span class="flex items-center gap-1.5 text-base">🌙 <span>Après-midi</span></span>
+            <span class="flex items-center gap-1.5 text-base">
+              <svg class="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+              <span>Après-midi</span>
+            </span>
             <span class="text-xs opacity-80 font-semibold">12h00 – 17h00</span>
           </button>
         </div>
@@ -132,7 +138,9 @@
 
     <!-- ÉTAT WEEK-END -->
     <div id="weekend-card" class="hidden bg-white rounded-2xl p-6 text-center border border-slate-200 shadow-xs space-y-2">
-      <div class="text-3xl">☕</div>
+      <div class="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      </div>
       <h3 class="text-base font-extrabold text-slate-900">Week-end : Pas de stage (R.A.S)</h3>
       <p class="text-xs text-slate-500 font-medium">Reprise normale des rotations cliniques lundi matin à 07h30.</p>
     </div>
@@ -206,6 +214,28 @@
         }
       }
 
+      // Séquences de réserve (3 salles distinctes)
+      const SEQS_3_ROOMS = [];
+      for (let s0 = 0; s0 < 4; s0++) {
+        for (let s1 = 0; s1 < 4; s1++) {
+          if (s1 === s0) continue;
+          for (let s2 = 0; s2 < 4; s2++) {
+            if (s2 === s1) continue;
+            for (let s3 = 0; s3 < 4; s3++) {
+              if (s3 === s2) continue;
+              for (let s4 = 0; s4 < 4; s4++) {
+                if (s4 === s3) continue;
+                if (new Set([s0, s1, s2, s3, s4]).size === 3) {
+                  SEQS_3_ROOMS.push([s0, s1, s2, s3, s4]);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      let roomCapacities = [2, 3, 4, 4];
+
       function mulberry32(a) {
         return function() {
           var t = a += 0x6D2B79F5;
@@ -216,35 +246,51 @@
       }
 
       const scheduleCache = new Map();
-      function getDeterministicWeeklySchedule(N, weekNumber) {
+      function getDeterministicWeeklySchedule(N, weekNumber, journeeCountsPerDay) {
         if (N === 0) return [];
-        if (N < 4) {
-          const res = [];
-          for (let i = 0; i < N; i++) res.push([(i+0)%4, (i+1)%4, (i+2)%4, (i+3)%4, (i+1)%4]);
-          return res;
-        }
-        const cacheKey = `${N}_${weekNumber}`;
+        const jKey = journeeCountsPerDay ? JSON.stringify(journeeCountsPerDay) : 'none';
+        const cacheKey = `${N}_${weekNumber}_${jKey}_${roomCapacities.join('-')}`;
         if (scheduleCache.has(cacheKey)) return scheduleCache.get(cacheKey);
 
-        const minCap = Math.floor(N / 4);
-        const maxCap = Math.ceil(N / 4);
-        const seed = (Math.abs(weekNumber) * 7919 + N * 104729 + 12345) >>> 0;
-        const rand = mulberry32(seed);
+        const maxCaps = Array.from({ length: 5 }, (_, d) => {
+          return roomCapacities.map((cap, r) => {
+            const jCount = (journeeCountsPerDay && journeeCountsPerDay[d]) ? (journeeCountsPerDay[d][r] || 0) : 0;
+            return Math.max(0, cap - jCount);
+          });
+        });
+
+        const weeklyAvail = [0, 0, 0, 0];
+        for (let d = 0; d < 5; d++) {
+          for (let r = 0; r < 4; r++) {
+            weeklyAvail[r] += maxCaps[d][r];
+          }
+        }
+
+        const dupCandidates = [];
+        for (let r = 0; r < 4; r++) {
+          if (weeklyAvail[r] > N) dupCandidates.push(r);
+        }
+        if (dupCandidates.length === 0) dupCandidates.push(2, 3);
 
         const targetDups = [];
-        for (let i = 0; i < N; i++) targetDups.push(((i + weekNumber) % 4 + 4) % 4);
+        for (let i = 0; i < N; i++) {
+          targetDups.push(dupCandidates[(i + weekNumber) % dupCandidates.length]);
+        }
+
+        const seed = (Math.abs(weekNumber) * 7919 + N * 104729 + 12345) >>> 0;
+        const rand = mulberry32(seed);
 
         let bestSeqs = null;
         let bestScore = Infinity;
 
-        for (let trial = 0; trial < 2500; trial++) {
+        for (let trial = 0; trial < 1000; trial++) {
           const chosen = [];
           const counts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
           let possible = true;
 
           for (let i = 0; i < N; i++) {
             const targetRoom = targetDups[i];
-            const pool = SEQS_BY_DUP[targetRoom];
+            const pool = SEQS_BY_DUP[targetRoom] || VALID_ROOM_SEQUENCES;
             const cands = [...pool];
             for (let k = cands.length - 1; k > 0; k--) {
               const j = Math.floor(rand() * (k + 1));
@@ -256,10 +302,49 @@
             for (const seq of cands) {
               let canAdd = true;
               for (let d = 0; d < 5; d++) {
-                if (counts[d][seq[d]] >= maxCap) { canAdd = false; break; }
+                if (counts[d][seq[d]] >= maxCaps[d][seq[d]]) { canAdd = false; break; }
               }
               if (canAdd) { picked = seq; break; }
             }
+
+            if (!picked) {
+              for (const altRoom of dupCandidates) {
+                if (altRoom === targetRoom) continue;
+                const altCands = [...(SEQS_BY_DUP[altRoom] || [])];
+                for (let k = altCands.length - 1; k > 0; k--) {
+                  const j = Math.floor(rand() * (k + 1));
+                  const tmp = altCands[k];
+                  altCands[k] = altCands[j];
+                  altCands[j] = tmp;
+                }
+                for (const seq of altCands) {
+                  let canAdd = true;
+                  for (let d = 0; d < 5; d++) {
+                    if (counts[d][seq[d]] >= maxCaps[d][seq[d]]) { canAdd = false; break; }
+                  }
+                  if (canAdd) { picked = seq; break; }
+                }
+                if (picked) break;
+              }
+            }
+
+            if (!picked) {
+              const alt3Cands = [...SEQS_3_ROOMS];
+              for (let k = Math.min(50, alt3Cands.length - 1); k > 0; k--) {
+                const j = Math.floor(rand() * (k + 1));
+                const tmp = alt3Cands[k];
+                alt3Cands[k] = alt3Cands[j];
+                alt3Cands[j] = tmp;
+              }
+              for (const seq of alt3Cands) {
+                let canAdd = true;
+                for (let d = 0; d < 5; d++) {
+                  if (counts[d][seq[d]] >= maxCaps[d][seq[d]]) { canAdd = false; break; }
+                }
+                if (canAdd) { picked = seq; break; }
+              }
+            }
+
             if (!picked) { possible = false; break; }
             chosen.push(picked);
             for (let d = 0; d < 5; d++) counts[d][picked[d]]++;
@@ -270,7 +355,7 @@
           let valid = true;
           for (let d = 0; d < 5; d++) {
             for (let r = 0; r < 4; r++) {
-              if (counts[d][r] < minCap || counts[d][r] > maxCap) { valid = false; break; }
+              if (counts[d][r] > maxCaps[d][r]) { valid = false; break; }
             }
             if (!valid) break;
           }
@@ -304,22 +389,51 @@
         return bestSeqs;
       }
 
-      // Séquences canoniques Journée continue (4 salles, 0 répétition consécutive)
-      const JOURNEE_CANONICAL_SEQUENCES = [
-        [0, 1, 0, 2, 3],
-        [1, 0, 1, 3, 2],
-        [2, 3, 2, 0, 1],
-        [3, 2, 3, 1, 0]
-      ];
-
+      const journeeCache = new Map();
       function getJourneeWeeklySchedule(N, weekNumber) {
         if (N === 0) return [];
-        const schedule = [];
+        const cacheKey = `${N}_${weekNumber}_${roomCapacities.join('-')}`;
+        if (journeeCache.has(cacheKey)) return journeeCache.get(cacheKey);
+
+        const res = [];
+        const dailyCounts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
+
         for (let i = 0; i < N; i++) {
-          const canonicalIdx = (i + (weekNumber % 4)) % 4;
-          schedule.push(JOURNEE_CANONICAL_SEQUENCES[canonicalIdx]);
+          const targetDup = ((i + weekNumber) % 4 + 4) % 4;
+          const pool = SEQS_BY_DUP[targetDup] || VALID_ROOM_SEQUENCES;
+          const desiredStart = ((i + weekNumber) % 4 + 4) % 4;
+
+          let bestSeq = null;
+          let bestScore = Infinity;
+
+          for (const seq of pool) {
+            let score = 0;
+            let fits = true;
+            for (let d = 0; d < 5; d++) {
+              if (dailyCounts[d][seq[d]] >= roomCapacities[seq[d]]) {
+                fits = false;
+                break;
+              }
+            }
+            if (!fits) continue;
+
+            if (seq[0] !== desiredStart) score += 2;
+            for (let d = 0; d < 5; d++) score += dailyCounts[d][seq[d]] * 10;
+            if (score < bestScore) {
+              bestScore = score;
+              bestSeq = seq;
+            }
+          }
+
+          if (!bestSeq && pool.length > 0) bestSeq = pool[0];
+          if (bestSeq) {
+            res.push(bestSeq);
+            for (let d = 0; d < 5; d++) dailyCounts[d][bestSeq[d]]++;
+          }
         }
-        return schedule;
+
+        journeeCache.set(cacheKey, res);
+        return res;
       }
 
       // État de la page
@@ -388,13 +502,21 @@
       async function loadStagiaires() {
         if (!supabase) return;
         try {
-          const { data, error } = await supabase
-            .from('stagiaires')
-            .select('*')
-            .eq('actif', true)
-            .order('nom', { ascending: true });
-          if (error) throw error;
-          stagiaires = data || [];
+          const [stagRes, confRes] = await Promise.all([
+            supabase.from('stagiaires').select('*').eq('actif', true).order('nom', { ascending: true }),
+            supabase.from('config').select('date_debut_stage, capacites_salles').eq('id', 1).maybeSingle()
+          ]);
+          if (stagRes.error) throw stagRes.error;
+          stagiaires = stagRes.data || [];
+          if (confRes.data?.capacites_salles) {
+            const c = confRes.data.capacites_salles;
+            roomCapacities = [
+              Math.max(1, Number(c.triage ?? c[0] ?? 2)),
+              Math.max(1, Number(c.piquage ?? c[1] ?? 3)),
+              Math.max(1, Number(c.dechoc ?? c[2] ?? 4)),
+              Math.max(1, Number(c.observation ?? c[3] ?? 4))
+            ];
+          }
         } catch (err) {
           console.error('Erreur chargement stagiaires:', err);
         }
@@ -478,12 +600,21 @@
         // Stagiaires en Journée continue (présents matin et après-midi)
         const journeeStudents = stagiaires.filter(s => s.disponibilite === 'journee');
 
-        const N_reg = regularStudents.length;
-        const dayIdx = currentDate.getDay() - 1; // 0 = Lundi, 4 = Vendredi
-        const weeklyMatrix = getDeterministicWeeklySchedule(N_reg, diffWeeks);
-
         const N_j = journeeStudents.length;
         const journeeMatrix = getJourneeWeeklySchedule(N_j, diffWeeks);
+
+        const journeeCountsPerDay = Array.from({ length: 5 }, (_, d) => {
+          const counts = [0, 0, 0, 0];
+          for (let i = 0; i < N_j; i++) {
+            const rIdx = journeeMatrix[i] ? journeeMatrix[i][d] : (i % 4);
+            counts[rIdx]++;
+          }
+          return counts;
+        });
+
+        const N_reg = regularStudents.length;
+        const dayIdx = currentDate.getDay() - 1; // 0 = Lundi, 4 = Vendredi
+        const weeklyMatrix = getDeterministicWeeklySchedule(N_reg, diffWeeks, journeeCountsPerDay);
 
         // Répartition par salle pour ce jour
         const roomRoster = [[], [], [], []];
@@ -552,7 +683,7 @@
                       <span>✕</span> <span>Absent</span>
                     </button>
                     <button type="button" onclick="setStudentStatus('${student.id}', 'retard')" class="status-btn py-2.5 px-1 rounded-xl text-xs font-extrabold border-2 transition-all tap-target flex items-center justify-center gap-1 ${status === 'retard' ? 'bg-amber-500 border-amber-600 text-white shadow-xs' : 'bg-slate-50 border-slate-200 text-slate-600'}">
-                      <span>⏱</span> <span>Retard</span>
+                      <span>Retard</span>
                     </button>
                   </div>
                 </div>

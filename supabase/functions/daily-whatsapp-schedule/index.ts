@@ -117,7 +117,7 @@ function getDeterministicWeeklySchedule(N: number, weekNumber: number, journeeCo
   if (N === 0) return [];
 
   const jKey = journeeCountsPerDay ? JSON.stringify(journeeCountsPerDay) : "none";
-  const cacheKey = `${N}_${weekNumber}_${jKey}`;
+  const cacheKey = `${N}_${weekNumber}_${jKey}_${ROOM_CAPACITIES.join("-")}`;
   if (weeklyScheduleCache.has(cacheKey)) {
     return weeklyScheduleCache.get(cacheKey)!;
   }

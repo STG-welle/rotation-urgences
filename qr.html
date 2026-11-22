@@ -68,8 +68,8 @@
 
     <!-- État 1 : CONNECTÉ (Tout va bien) -->
     <div id="state-connected" class="hidden text-center space-y-6">
-      <div class="w-20 h-20 mx-auto rounded-3xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-4xl shadow-inner shadow-emerald-500/10">
-        ✅
+      <div class="w-20 h-20 mx-auto rounded-3xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shadow-inner shadow-emerald-500/10">
+        <svg class="w-10 h-10" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
       </div>
 
       <div class="space-y-2">
@@ -99,18 +99,18 @@
 
       <div class="pt-2">
         <p class="text-[11px] text-slate-500 mb-3">
-          💡 Aucun scan requis tant que ce statut est vert. En cas de coupure inattendue, le bot Telegram vous alertera avec la photo du QR code et affichera le QR code ici même.
+          Aucun scan requis tant que ce statut est vert. En cas de coupure inattendue, le bot Telegram vous alertera avec la photo du QR code et affichera le QR code ici même.
         </p>
         <button id="btn-demo-qr" class="w-full py-2 px-3 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700/50 transition cursor-pointer">
-          👁️ Tester l'affichage du QR Code (Simulation)
+          Tester l'affichage du QR Code (Simulation)
         </button>
       </div>
     </div>
 
     <!-- État 2 : DÉCONNECTÉ (QR Code à scanner) -->
     <div id="state-disconnected" class="hidden text-center space-y-5">
-      <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center text-3xl shadow-inner">
-        📱
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center shadow-inner">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
       </div>
 
       <div>
@@ -165,8 +165,8 @@
 
     <!-- État 3 : ERREUR -->
     <div id="state-error" class="hidden text-center space-y-4 py-4">
-      <div class="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center text-3xl">
-        ⚠️
+      <div class="w-16 h-16 mx-auto rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
       </div>
       <h2 class="text-lg font-bold text-white">Impossible de contacter le serveur</h2>
       <p id="error-message" class="text-xs text-rose-300/80 bg-rose-950/40 p-3 rounded-xl border border-rose-900/50 font-mono"></p>

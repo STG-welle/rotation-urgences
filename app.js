@@ -424,6 +424,8 @@
 
   function applyRoomCapacities(caps) {
     if (!caps) return;
+    weeklyScheduleCache.clear();
+    journeeScheduleCache.clear();
     const triageCap = Math.max(1, Number(caps.triage ?? caps[0] ?? 2));
     const piquageCap = Math.max(1, Number(caps.piquage ?? caps[1] ?? 3));
     const dechocCap = Math.max(1, Number(caps.dechoc ?? caps[2] ?? 4));
@@ -500,7 +502,7 @@
     const roomCaps = getRoomCapacities();
 
     const jKey = journeeCountsPerDay ? JSON.stringify(journeeCountsPerDay) : 'none';
-    const cacheKey = `${N}_${weekNumber}_${jKey}`;
+    const cacheKey = `${N}_${weekNumber}_${jKey}_${roomCaps.join('-')}`;
     if (weeklyScheduleCache.has(cacheKey)) {
       return weeklyScheduleCache.get(cacheKey);
     }
@@ -740,12 +742,11 @@
 
   function getJourneeWeeklySchedule(N, weekNumber) {
     if (N === 0) return [];
-    const cacheKey = `${N}_${weekNumber}`;
+    const roomCaps = getRoomCapacities();
+    const cacheKey = `${N}_${weekNumber}_${roomCaps.join('-')}`;
     if (journeeScheduleCache.has(cacheKey)) {
       return journeeScheduleCache.get(cacheKey);
     }
-
-    const roomCaps = getRoomCapacities();
     const res = [];
     const dailyCounts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
 
