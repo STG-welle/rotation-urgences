@@ -17,7 +17,7 @@ const ROOMS = [
     code: "triage",
     name: "Triage",
     maxCapacity: 2,
-    emoji: "🔵",
+    emoji: "",
     role: "Accueil, évaluation clinique et orientation immédiate des urgences (constantes, tri)"
   },
   {
@@ -25,7 +25,7 @@ const ROOMS = [
     code: "piquage",
     name: "Piquage",
     maxCapacity: 3,
-    emoji: "🟢",
+    emoji: "",
     role: "Soins infirmiers, bilans d’urgence et ECG"
   },
   {
@@ -33,7 +33,7 @@ const ROOMS = [
     code: "dechoc",
     name: "Déchocage",
     maxCapacity: 4,
-    emoji: "🔴",
+    emoji: "",
     role: "Prise en charge des détresses vitales et urgences absolues"
   },
   {
@@ -41,7 +41,7 @@ const ROOMS = [
     code: "observation",
     name: "Observation",
     maxCapacity: 4,
-    emoji: "🟣",
+    emoji: "",
     role: "Surveillance clinique rapprochée et attente de résultats"
   }
 ];
@@ -645,12 +645,12 @@ serve(async (req: Request) => {
     const roomAssignmentsTeam2 = (isWeekend || !hasTeam2) ? [] : buildDynamicAssignments(team2Members);
 
     const morningTeam = team1IsMorning
-      ? { name: "Équipe 1", assignments: roomAssignmentsTeam1, shift: "Matinée", emoji: "☀️" }
-      : { name: "Équipe 2", assignments: roomAssignmentsTeam2, shift: "Matinée", emoji: "☀️" };
+      ? { name: "Équipe 1", assignments: roomAssignmentsTeam1, shift: "Matinée", emoji: "" }
+      : { name: "Équipe 2", assignments: roomAssignmentsTeam2, shift: "Matinée", emoji: "" };
 
     const afternoonTeam = team1IsMorning
-      ? { name: "Équipe 2", assignments: roomAssignmentsTeam2, shift: "Après-midi", emoji: "🌙" }
-      : { name: "Équipe 1", assignments: roomAssignmentsTeam1, shift: "Après-midi", emoji: "🌙" };
+      ? { name: "Équipe 2", assignments: roomAssignmentsTeam2, shift: "Après-midi", emoji: "" }
+      : { name: "Équipe 1", assignments: roomAssignmentsTeam1, shift: "Après-midi", emoji: "" };
 
     // 9. Génération du message formaté (Groq AI ou Fallback local)
     const scheduleContext = {
@@ -683,10 +683,15 @@ serve(async (req: Request) => {
       whatsappMessage = generateFallbackTemplate(scheduleContext);
     }
 
-    // Nettoyage de tout lien vers le site si présent
+    // Nettoyage strict : suppression de tout lien, note de bas de page, bavardage IA et emoji
     whatsappMessage = whatsappMessage
       .replace(/\n*🌐\s*\*Planning complet de la semaine\s*:\*\s*\n*https:\/\/stg-welle\.github\.io\/rotation-urgences\/?/gi, "")
       .replace(/\n*https:\/\/stg-welle\.github\.io\/rotation-urgences\/?/gi, "")
+      .replace(/\n*💡\s*_Ce briefing automatique[\s\S]*$/gi, "")
+      .replace(/\n*💡[\s\S]*$/gi, "")
+      .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+      .replace(/^[ \t]+/gm, "")
+      .replace(/\n{3,}/g, "\n\n")
       .trim();
 
     // 10. Envoi WhatsApp avec verrou anti-doublon (Idempotence)
@@ -881,61 +886,62 @@ async function generateWithGroq(
 
   if (ctx.isWeekend) {
     prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
-Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format :
+Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format sobre, sans emoji et sans bavardage :
 
-🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
+*CHUL • URGENCES PÉDIATRIQUES*
 *Date : ${ctx.date}*
 
-⚪ *R.A.S*
+*R.A.S*
 _Reprise du service lundi matin._`;
   } else if (!ctx.hasTeam2) {
     const singleTeam = ctx.morningTeam.name === "Équipe 1" ? ctx.morningTeam : ctx.afternoonTeam;
     prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
-Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format minimaliste, aéré et épuré.
+Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format sobre, sans emoji et sans bavardage :
 
 Données du jour :
 - Date : ${ctx.date}
-- Créneau : ${singleTeam.emoji} ${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}
+- Créneau : ${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}
 - Répartition :
 ${JSON.stringify(singleTeam.assignments, null, 2)}
 
 FORMAT EXACT REQUIS :
-🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*
-*Date : ${ctx.date}*
+*CHUL • URGENCES PÉDIATRIQUES*
+*Briefing du jour — ${ctx.date}*
 
-${singleTeam.emoji} *${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}*
+*${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}*
 
-🔵 *Triage*
-
-• Nom1
-• Nom2
-
-🟢 *Piquage*
+*Triage*
 
 • Nom1
 • Nom2
 
-🔴 *Déchocage*
+*Piquage*
 
 • Nom1
 • Nom2
 
-🟣 *Observation*
+*Déchocage*
+
+• Nom1
+• Nom2
+
+*Observation*
 
 • Nom1
 • Nom2
 
 Consignes strictes :
-1. N'ajoute AUCUNE description de rôle sous les salles.
-2. Ne mets PAS les lettres de groupe comme "(Groupe A)". Affiche seulement "🔵 *Triage*", "🟢 *Piquage*", "🔴 *Déchocage*", "🟣 *Observation*".
-3. Laisse une ligne vide entre le titre de la salle et la liste des noms.
-4. Laisse une ligne vide entre chaque bloc de salle.
-5. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
-6. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.
-7. Si une salle ne compte aucun stagiaire actif (tableau activeStudents vide), affiche impérativement "• _(aucun stagiaire en poste)_" sous le titre de cette salle. Ne laisse JAMAIS un titre de salle vide.`;
+1. N'ajoute AUCUN emoji nulle part.
+2. N'ajoute AUCUNE description de rôle sous les salles.
+3. Affiche seulement "*Triage*", "*Piquage*", "*Déchocage*", "*Observation*".
+4. Laisse une ligne vide entre le titre de la salle et la liste des noms.
+5. Laisse une ligne vide entre chaque bloc de salle.
+6. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
+7. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de note de bas de page, ni de guillemets.
+8. Si une salle ne compte aucun stagiaire actif (tableau activeStudents vide), affiche impérativement "• _(aucun stagiaire en poste)_" sous le titre de cette salle. Ne laisse JAMAIS un titre de salle vide.`;
   } else {
     prompt = `Tu es le superviseur des urgences du ${ctx.hopital}.
-Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format minimaliste, aéré et épuré séparant la MATINÉE et l'APRÈS-MIDI.
+Rédige le message officiel WhatsApp en respectant SCRUPULEUSEMENT ce format sobre, sans emoji et sans bavardage, séparant la MATINÉE et l'APRÈS-MIDI.
 
 Données du jour :
 - Date : ${ctx.date}
@@ -945,66 +951,64 @@ ${JSON.stringify(ctx.morningTeam.assignments, null, 2)}
 ${JSON.stringify(ctx.afternoonTeam.assignments, null, 2)}
 
 FORMAT EXACT REQUIS :
-🏥 *CHUL • URGENCES PÉDIATRIQUES*
-📋 *Briefing du Jour — ${ctx.date}*
+*CHUL • URGENCES PÉDIATRIQUES*
+*Briefing du jour — ${ctx.date}*
 
-☀️ *MATINÉE • ${ctx.morningTeam.name.toUpperCase()}* (07h30 - 12h00)
+*MATINÉE • ${ctx.morningTeam.name.toUpperCase()}* (07h30 - 12h00)
 
-🔵 *Triage*
-
-• Nom1
-• Nom2
-
-🟢 *Piquage*
+*Triage*
 
 • Nom1
 • Nom2
 
-🔴 *Déchocage*
+*Piquage*
 
 • Nom1
 • Nom2
 
-🟣 *Observation*
+*Déchocage*
+
+• Nom1
+• Nom2
+
+*Observation*
 
 • Nom1
 • Nom2
 
 ─────────────────────
-🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)
+*APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)
 
-🔵 *Triage*
+*Triage*
 
 • NomA
 • NomB
 
-🟢 *Piquage*
+*Piquage*
 
 • NomC
 • NomD
 
-🔴 *Déchocage*
+*Déchocage*
 
 • NomE
 • NomF
 
-🟣 *Observation*
+*Observation*
 
 • NomG
 • NomH
 
-─────────────────────
-💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._
-
 Consignes strictes :
-1. N'ajoute AUCUNE description de rôle sous les salles.
-2. Ne mets PAS les lettres de groupe comme "(Groupe A)". Affiche seulement "🔵 *Triage*", "🟢 *Piquage*", "🔴 *Déchocage*", "🟣 *Observation*".
-3. Laisse une ligne vide entre le titre de la salle et la liste des noms.
-4. Laisse une ligne vide entre chaque bloc de salle.
-5. Sépare la Matinée et l'Après-midi par la ligne "───────────────".
-6. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
-7. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, ni de guillemets.
-8. Si une salle ne compte aucun stagiaire actif (tableau activeStudents vide), affiche impérativement "• _(aucun stagiaire en poste)_" sous le titre de cette salle. Ne laisse JAMAIS un titre de salle vide.`;
+1. N'ajoute AUCUN emoji nulle part.
+2. N'ajoute AUCUNE description de rôle sous les salles.
+3. Affiche seulement "*Triage*", "*Piquage*", "*Déchocage*", "*Observation*".
+4. Laisse une ligne vide entre le titre de la salle et la liste des noms.
+5. Laisse une ligne vide entre chaque bloc de salle.
+6. Sépare la Matinée et l'Après-midi par la ligne "─────────────────────".
+7. Affiche UNIQUEMENT les stagiaires actifs (ceux listés dans activeStudents). Les personnes suspendues ou absentes NE DOIVENT PAS apparaître dans le programme.
+8. Ne rajoute AUCUNE phrase d'introduction ni de conclusion, AUCUNE note de bas de page, AUCUN bavardage IA, ni de guillemets.
+9. Si une salle ne compte aucun stagiaire actif (tableau activeStudents vide), affiche impérativement "• _(aucun stagiaire en poste)_" sous le titre de cette salle. Ne laisse JAMAIS un titre de salle vide.`;
   }
 
   const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -1093,18 +1097,18 @@ function generateFallbackTemplate(ctx: {
     absentStudents: string[];
   }>;
 }): string {
-  let msg = `🏥 *CHUL • URGENCES PÉDIATRIQUES*\n`;
-  msg += `📋 *Briefing du Jour — ${ctx.date}*\n\n`;
+  let msg = `*CHUL • URGENCES PÉDIATRIQUES*\n`;
+  msg += `*Briefing du jour — ${ctx.date}*\n\n`;
 
   if (ctx.isWeekend) {
-    msg += `⚪ *R.A.S*\n`;
+    msg += `*R.A.S*\n`;
     msg += `_Reprise du service lundi matin._\n\n`;
   } else if (!ctx.hasTeam2) {
     const singleTeam = ctx.morningTeam.name === "Équipe 1" ? ctx.morningTeam : ctx.afternoonTeam;
     const hours = singleTeam.shift === "Matinée" ? "(07h30 - 12h00)" : "(12h00 - 17h00)";
-    msg += `${singleTeam.emoji} *${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}* ${hours}\n\n`;
+    msg += `*${singleTeam.shift.toUpperCase()} • ${singleTeam.name.toUpperCase()}* ${hours}\n\n`;
     singleTeam.assignments.forEach((ra) => {
-      msg += `${ra.emoji} *${ra.room}*\n\n`;
+      msg += `*${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {
         msg += `• _(aucun stagiaire actif)_\n\n`;
       } else {
@@ -1115,9 +1119,9 @@ function generateFallbackTemplate(ctx: {
       }
     });
   } else {
-    msg += `☀️ *MATINÉE • ${ctx.morningTeam.name.toUpperCase()}* (07h30 - 12h00)\n\n`;
+    msg += `*MATINÉE • ${ctx.morningTeam.name.toUpperCase()}* (07h30 - 12h00)\n\n`;
     ctx.morningTeam.assignments.forEach((ra) => {
-      msg += `${ra.emoji} *${ra.room}*\n\n`;
+      msg += `*${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {
         msg += `• _(aucun stagiaire actif)_\n\n`;
       } else {
@@ -1129,9 +1133,9 @@ function generateFallbackTemplate(ctx: {
     });
 
     msg += `─────────────────────\n`;
-    msg += `🌙 *APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)\n\n`;
+    msg += `*APRÈS-MIDI • ${ctx.afternoonTeam.name.toUpperCase()}* (12h00 - 17h00)\n\n`;
     ctx.afternoonTeam.assignments.forEach((ra) => {
-      msg += `${ra.emoji} *${ra.room}*\n\n`;
+      msg += `*${ra.room}*\n\n`;
       if (ra.activeStudents.length === 0) {
         msg += `• _(aucun stagiaire actif)_\n\n`;
       } else {
@@ -1143,8 +1147,6 @@ function generateFallbackTemplate(ctx: {
     });
   }
 
-  msg += `─────────────────────\n`;
-  msg += `💡 _Ce briefing automatique est diffusé chaque Mardi et Jeudi à 05h10. Pour les autres jours, consultez le planning hebdomadaire (commande « pln »)._`;
   return msg.trim();
 }
 

@@ -14,7 +14,7 @@ const path = require('path');
 
 async function main() {
   console.log('==================================================================');
-  console.log('🤖 BOT WHATSAPP : CAPTURE & DIFFUSION HEBDOMADAIRE DU PLANNING');
+  console.log('PLANNING WHATSAPP : CAPTURE & DIFFUSION HEBDOMADAIRE');
   console.log('==================================================================');
 
   // Neutralisation immédiate du déclencheur cron natif de GitHub Actions ('schedule').
@@ -22,8 +22,8 @@ async function main() {
   // accuse 2 à 4 heures de retard (exécuté vers 22h-23h) et crée un doublon indésirable.
   // L'envoi officiel et ponctuel à 19h00 pile est pris en charge par Supabase pg_cron (workflow_dispatch).
   if (process.env.GITHUB_EVENT_NAME === 'schedule') {
-    console.log('🛑 [DÉCLENCHEUR SCHEDULE BLOQUÉ] Le déclencheur cron natif de GitHub Actions est ignoré pour éviter l\'envoi tardif en doublon (22h-23h).');
-    console.log('   L\'envoi du planning est géré exclusivement à 19h00 pile par Supabase pg_cron (workflow_dispatch).');
+    console.log('[DÉCLENCHEUR SCHEDULE BLOQUÉ] Le déclencheur cron natif de GitHub Actions est ignoré pour éviter l\'envoi tardif en doublon.');
+    console.log('   L\'envoi du planning est géré exclusivement à 19h00 pile par Supabase pg_cron.');
     console.log('==================================================================');
     return;
   }
@@ -56,7 +56,7 @@ async function main() {
         chatId = item.chat_id;
         activeRequestId = item.id;
         if (item.caption) customCaption = item.caption;
-        console.log(`🎯 [DEMANDE CIBLÉE] Commande 'pln' de ${item.sender || 'utilisateur'} -> Expédition exclusive vers : ${chatId} (le groupe principal ne sera PAS dérangé)`);
+        console.log(`[DEMANDE CIBLÉE] Commande 'pln' de ${item.sender || 'utilisateur'} -> Expédition exclusive vers : ${chatId}`);
       }
     }
   } catch (qErr) {
@@ -65,7 +65,7 @@ async function main() {
 
   // Vérification de la configuration
   if (!instanceId || !apiToken || !chatId) {
-    console.error('❌ ERREUR : Identifiants Green API ou ChatId manquants dans les variables d\'environnement !');
+    console.error('ERREUR : Identifiants Green API ou ChatId manquants dans les variables d\'environnement.');
     console.error('Assurez-vous de configurer les variables suivantes :');
     console.error('  - GREEN_API_INSTANCE_ID (ex: 7107123456)');
     console.error('  - GREEN_API_TOKEN       (ex: d79e672...)');
@@ -98,14 +98,14 @@ async function main() {
       });
       const checkData = await checkRes.json().catch(() => []);
       if (Array.isArray(checkData) && checkData.length > 0) {
-        console.log(`🛑 [ANTI-DOUBLON STRICT] Le planning hebdomadaire pour le ${librevilleDate} a DÉJÀ été envoyé aujourd'hui.`);
+        console.log(`[ANTI-DOUBLON STRICT] Le planning hebdomadaire pour le ${librevilleDate} a DÉJÀ été envoyé aujourd'hui.`);
         console.log(`   Destinataire principal (${chatId}) déjà notifié (Message ID: ${checkData[0].whatsapp_message_id || 'OK'}).`);
         console.log(`   Envoi annulé avec succès pour éviter tout doublon dans le groupe WhatsApp.`);
         console.log('==================================================================');
         return;
       }
     } catch (checkErr) {
-      console.warn('⚠️ Vérification anti-doublon ignorée :', checkErr.message);
+      console.warn('Vérification anti-doublon ignorée :', checkErr.message);
     }
   }
 
@@ -114,7 +114,7 @@ async function main() {
   try {
     chromium = require('playwright').chromium;
   } catch {
-    console.error('❌ ERREUR : Le module "playwright" est introuvable.');
+    console.error('ERREUR : Le module "playwright" est introuvable.');
     console.error('Installez-le avec : npm install && npx playwright install --with-deps chromium');
     process.exit(1);
   }
@@ -122,13 +122,13 @@ async function main() {
   const cleanHost = host.replace(/\/+$/, '');
   const targetUrl = siteUrl.includes('?') ? `${siteUrl}&mode=capture` : `${siteUrl}?mode=capture`;
 
-  console.log(`📍 Site cible       : ${targetUrl}`);
-  console.log(`📍 Instance Green API: ${instanceId}`);
-  console.log(`📍 Groupe WhatsApp   : ${chatId}`);
-  console.log(`📍 Fuseau horaire    : Africa/Libreville (UTC+1)\n`);
+  console.log(`Site cible       : ${targetUrl}`);
+  console.log(`Instance Green API: ${instanceId}`);
+  console.log(`Groupe WhatsApp   : ${chatId}`);
+  console.log(`Fuseau horaire    : Africa/Libreville (UTC+1)\n`);
 
   // 2. Lancement du navigateur Chromium en mode headless avec Playwright
-  console.log('🚀 [1/4] Démarrage du navigateur headless (Chromium)...');
+  console.log('[1/4] Démarrage du navigateur headless (Chromium)...');
   const browser = await chromium.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox']
@@ -144,10 +144,10 @@ async function main() {
   const page = await context.newPage();
 
   // 3. Navigation et attente des données Supabase
-  console.log(`🌐 [2/4] Chargement de la page de capture...`);
+  console.log(`[2/4] Chargement de la page de capture...`);
   await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 60000 });
 
-  console.log('⏳ [2/4] Attente de la validation du conteneur #planning-screenshot-zone[data-loaded="true"]...');
+  console.log('[2/4] Attente de la validation du conteneur #planning-screenshot-zone[data-loaded="true"]...');
   await page.waitForSelector('#planning-screenshot-zone[data-loaded="true"]', { timeout: 35000 });
 
   // Pause de stabilisation pour les polices Google Fonts et les rendus CSS
@@ -161,9 +161,9 @@ async function main() {
   }
 
   const outputPath = path.resolve(__dirname, '../planning-semaine.png');
-  console.log(`📸 [3/4] Capture de la zone de planning (Équipe 1 + Équipe 2)...`);
+  console.log(`[3/4] Capture de la zone de planning (Équipe 1 + Équipe 2)...`);
   await screenshotZone.screenshot({ path: outputPath });
-  console.log(`✅ [3/4] Image haute résolution générée avec succès : ${outputPath}`);
+  console.log(`[3/4] Image haute résolution générée avec succès : ${outputPath}`);
 
   await browser.close();
 
@@ -172,23 +172,20 @@ async function main() {
     const stateUrl = `${cleanHost}/waInstance${instanceId}/getStateInstance/${apiToken}`;
     const stateRes = await fetch(stateUrl);
     const stateData = await stateRes.json();
-    console.log(`📡 Contrôle Green API : Statut = ${stateData.stateInstance || 'inconnu'}`);
+    console.log(`Contrôle Green API : Statut = ${stateData.stateInstance || 'inconnu'}`);
     if (stateData.stateInstance && stateData.stateInstance !== 'authorized') {
-      console.warn(`⚠️ Avertissement : L'instance WhatsApp n'est pas "authorized" (${stateData.stateInstance}).`);
+      console.warn(`Avertissement : L'instance WhatsApp n'est pas "authorized" (${stateData.stateInstance}).`);
     }
   } catch (stateErr) {
-    console.warn(`⚠️ Contrôle pré-vol ignoré : ${stateErr.message}`);
+    console.warn(`Contrôle pré-vol ignoré : ${stateErr.message}`);
   }
 
   // 6. Envoi de l'image sur WhatsApp via Green API (sendFileByUpload)
-  console.log(`📤 [4/4] Envoi de l'image dans le groupe WhatsApp via Green API (sendFileByUpload)...`);
+  console.log(`[4/4] Envoi de l'image dans le groupe WhatsApp via Green API (sendFileByUpload)...`);
   const fileBuffer = fs.readFileSync(outputPath);
   const fileBlob = new Blob([fileBuffer], { type: 'image/png' });
 
-  const hourLibreville = (new Date().getUTCHours() + 1) % 24;
-  const greeting = (hourLibreville >= 18 || hourLibreville < 5) ? "Bonsoir l'équipe !" : "Bonjour l'équipe !";
-  const defaultCaption = `${greeting} Le planning des urgences pédiatriques pour la semaine prochaine est disponible ci-dessous.\n\nBonne semaine à tous !`;
-
+  const defaultCaption = '*CHUL • URGENCES PÉDIATRIQUES*\n*Planning hebdomadaire*';
   const captionText = customCaption || process.env.WHATSAPP_CAPTION || defaultCaption;
 
   const formData = new FormData();
@@ -205,11 +202,11 @@ async function main() {
   const responseData = await response.json().catch(() => ({}));
 
   if (!response.ok || responseData.error) {
-    console.error('❌ Échec de l\'envoi Green API :', responseData);
+    console.error('Échec de l\'envoi Green API :', responseData);
     throw new Error(`Green API sendFileByUpload error (HTTP ${response.status}) : ${JSON.stringify(responseData)}`);
   }
 
-  console.log('🎉 SUCCÈS : Image du planning transmise au chat cible !');
+  console.log('Succès : Image du planning transmise au chat cible.');
   console.log(`   Destinataire : ${chatId}`);
   console.log(`   Message ID : ${responseData.idMessage || 'OK'}`);
 
@@ -233,9 +230,9 @@ async function main() {
           status: 'sent'
         })
       });
-      console.log(`📝 Verrou anti-doublon enregistré dans Supabase (${weeklyDispatchKey}).`);
+      console.log(`Verrou anti-doublon enregistré dans Supabase (${weeklyDispatchKey}).`);
     } catch (historyErr) {
-      console.warn('⚠️ Enregistrement historique ignoré :', historyErr.message);
+      console.warn('Enregistrement historique ignoré :', historyErr.message);
     }
   }
 
@@ -250,7 +247,7 @@ async function main() {
         },
         body: JSON.stringify({ status: 'completed' })
       });
-      console.log(`✅ Demande ciblée #${activeRequestId} clôturée avec succès dans Supabase.`);
+      console.log(`Demande ciblée #${activeRequestId} clôturée avec succès dans Supabase.`);
     } catch (_) {}
   }
 
@@ -258,7 +255,7 @@ async function main() {
   const githubToken = process.env.GITHUB_TOKEN || process.env.GITHUB_PAT;
   if (githubToken) {
     try {
-      console.log('🔄 Sauvegarde automatique de la capture sur GitHub main...');
+      console.log('Sauvegarde automatique de la capture sur GitHub main...');
       const getFileRes = await fetch('https://api.github.com/repos/STG-welle/rotation-urgences/contents/planning-semaine.png', {
         headers: { 'Authorization': `Bearer ${githubToken}`, 'User-Agent': 'node', 'Accept': 'application/vnd.github.v3+json' }
       });
@@ -278,12 +275,12 @@ async function main() {
       });
       const putData = await putRes.json();
       if (putRes.ok) {
-        console.log('✅ planning-semaine.png mis à jour avec succès sur GitHub !');
+        console.log('planning-semaine.png mis à jour avec succès sur GitHub.');
       } else {
-        console.warn('⚠️ Échec mise à jour GitHub API :', putData.message || putData);
+        console.warn('Échec mise à jour GitHub API :', putData.message || putData);
       }
     } catch (ghErr) {
-      console.warn('⚠️ Erreur mise à jour GitHub API :', ghErr.message);
+      console.warn('Erreur mise à jour GitHub API :', ghErr.message);
     }
   }
 
@@ -291,6 +288,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('\n💥 ERREUR FATALE LORS DE L\'EXÉCUTION DU BOT :', err.message);
+  console.error('\nERREUR FATALE LORS DE L\'EXÉCUTION :', err.message);
   process.exit(1);
 });

@@ -1212,7 +1212,7 @@
           <div class="p-3.5 bg-slate-50 border-b border-slate-300 flex items-center justify-between flex-wrap gap-2">
             <div class="flex items-center gap-3">
               <span class="px-3 py-1 bg-slate-900 text-white text-xs font-black rounded-lg tracking-wider uppercase">
-                📋 ÉQUIPE ${teamNum}
+                ÉQUIPE ${teamNum}
               </span>
               <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${badgeClass}">
                 ${shiftIcon}
@@ -2096,7 +2096,7 @@
                 </span>
                 ${
                   (!isJournee && (isAutoTeam || isFixedSlot))
-                    ? `<span class="text-[10px] font-black px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-900 border border-cyan-200">🔄 Auto</span>`
+                    ? `<span class="text-[10px] font-black px-2 py-0.5 rounded-md bg-cyan-100 text-cyan-900 border border-cyan-200">Auto</span>`
                     : ''
                 }
               </div>
@@ -2134,7 +2134,7 @@
               `
                 : `
               <select data-admin-equipe="${s.id}" class="text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs" title="Équipe d'affectation">
-                <option value="auto" ${baseTeam === 'auto' ? 'selected' : ''}>🔄 Équipe Auto</option>
+                <option value="auto" ${baseTeam === 'auto' ? 'selected' : ''}>Équipe Auto</option>
                 <option value="1" ${baseTeam === '1' ? 'selected' : ''}>Équipe 1</option>
                 <option value="2" ${baseTeam === '2' ? 'selected' : ''}>Équipe 2</option>
               </select>
@@ -2171,9 +2171,8 @@
           (isAutoTeam || isFixedSlot || isJournee)
             ? `
           <div class="flex items-center gap-2 p-2 rounded-xl ${isJournee ? 'bg-amber-50/90 border-amber-300 text-amber-950' : 'bg-blue-50/90 border-blue-200 text-blue-900'} text-xs font-bold border">
-            <span class="text-sm shrink-0">🔄</span>
             <span class="truncate sm:whitespace-normal">
-              <strong>${isJournee ? 'Journée continue :' : 'Adaptation automatique :'}</strong> ${
+              <strong>${isJournee ? 'Journée continue :' : 'Affectation :'}</strong> ${
                 isJournee
                   ? `En poste toute la journée en rotation sur les 4 salles.`
                   : isFixedSlot
@@ -2212,7 +2211,7 @@
             equipeSel.disabled = false;
             equipeSel.className = 'text-xs font-bold bg-white hover:bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer shadow-2xs';
             equipeSel.innerHTML = `
-              <option value="auto">🔄 Équipe Auto</option>
+              <option value="auto">Équipe Auto</option>
               <option value="1">Équipe 1</option>
               <option value="2">Équipe 2</option>
             `;
@@ -2535,15 +2534,15 @@
     const team2Members = state.stagiaires.filter((s) => (s.equipe || '1') === '2');
     const hasTeam2 = team2Members.length > 0;
 
-    let text = `🏥 *Centre Hospitalier Universitaire de Libreville (CHUL) • Service des Urgences Pédiatriques*\n*Date : ${day1.dayInfo.label} ${day1.dateFormatted}*\n\n`;
+    let text = `*CHUL • URGENCES PÉDIATRIQUES*\n*Date : ${day1.dayInfo.label} ${day1.dateFormatted}*\n\n`;
 
     if (day1.isWeekend) {
-      text += `⚪ *R.A.S*\n_Reprise du service lundi matin._\n\n`;
+      text += `*R.A.S*\n_Reprise du service lundi matin._\n\n`;
     } else if (!hasTeam2) {
       const shift = team1Schedule.currentTeamShift;
       text += `*${shift.label.toUpperCase()} • ÉQUIPE 1* (${shift.shift === 'matin' ? '07h30 - 12h00' : '12h00 - 17h00'})\n\n`;
       day1.roomAssignments.forEach((ra) => {
-        text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
+        text += `*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
           text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
@@ -2571,7 +2570,7 @@
       // 1. Matinée
       text += `*MATINÉE • ${morningTeam.name}* (07h30 - 12h00)\n\n`;
       morningTeam.day.roomAssignments.forEach((ra) => {
-        text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
+        text += `*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
           text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
@@ -2589,7 +2588,7 @@
       // 3. Après-midi
       text += `*APRÈS-MIDI • ${afternoonTeam.name}* (12h00 - 17h00)\n\n`;
       afternoonTeam.day.roomAssignments.forEach((ra) => {
-        text += `${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name}*\n\n`;
+        text += `*${ra.name}*\n\n`;
         if (ra.students.length === 0) {
           text += `• _(aucun stagiaire en poste)_\n\n`;
         } else {
@@ -2616,8 +2615,8 @@
     const s = formatDateShort(team1Schedule.targetMonday);
     const e = formatDateShort(team1Schedule.targetSunday);
 
-    let text = `🏥 *CHUL • SERVICE DES URGENCES PÉDIATRIQUES*\n`;
-    text += `📋 *Planning de la semaine du ${s.toUpperCase()} au ${e.toUpperCase()}*\n`;
+    let text = `*CHUL • URGENCES PÉDIATRIQUES*\n`;
+    text += `*Planning de la semaine du ${s.toUpperCase()} au ${e.toUpperCase()}*\n\n`;
     if (hasTeam2) {
       const t1Shift = team1Schedule.shifts.team1;
       const t2Shift = team1Schedule.shifts.team2;
@@ -2630,13 +2629,13 @@
 
     for (let d = 0; d < 7; d++) {
       const d1 = team1Schedule.daysData[d];
-      text += `📅 *${d1.dayInfo.label.toUpperCase()} ${d1.dateFormatted} :*\n`;
+      text += `*${d1.dayInfo.label.toUpperCase()} ${d1.dateFormatted} :*\n`;
       if (d1.isWeekend) {
-        text += `  ⚪ *R.A.S* (Reprise du service lundi matin)\n\n`;
+        text += `  *R.A.S* (Reprise du service lundi matin)\n\n`;
       } else if (!hasTeam2) {
         d1.roomAssignments.forEach((ra) => {
           const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (Journée continue)' : ''}`).join(' & ');
-          text += `  ${ra.emoji ? ra.emoji + ' ' : ''}*${ra.name} :* ${names || '(aucun)'}\n`;
+          text += `  *${ra.name} :* ${names || '(aucun)'}\n`;
         });
         text += `\n`;
       } else {
@@ -2648,20 +2647,19 @@
         text += `  *${morningDay.name} :*\n`;
         morningDay.day.roomAssignments.forEach((ra) => {
           const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (Journée continue)' : ''}`).join(' & ');
-          if (names) text += `    ${ra.emoji ? ra.emoji + ' ' : ''}${ra.name} : ${names}\n`;
+          if (names) text += `    ${ra.name} : ${names}\n`;
         });
 
         text += `  *${afternoonDay.name} :*\n`;
         afternoonDay.day.roomAssignments.forEach((ra) => {
           const names = ra.students.map((st) => `${st.nom}${st.disponibilite === 'journee' ? ' (Journée continue)' : ''}`).join(' & ');
-          if (names) text += `    ${ra.emoji ? ra.emoji + ' ' : ''}${ra.name} : ${names}\n`;
+          if (names) text += `    ${ra.name} : ${names}\n`;
         });
         text += `\n`;
       }
     }
 
-    text += `🌐 *Consulter en ligne :*\nhttps://stg-welle.github.io/rotation-urgences/`;
-    copyTextToClipboard(text, 'Semaine complète copiée !');
+    copyTextToClipboard(text.trim(), 'Semaine complète copiée !');
     closeModal('whatsapp-modal');
   }
 
@@ -2861,7 +2859,7 @@
       if (feedback) feedback.textContent = 'Enregistrement...';
       await updateRoomCapacities({ triage, piquage, dechoc, observation });
       if (feedback) {
-        feedback.textContent = '✓ Capacités enregistrées';
+        feedback.textContent = 'Capacités enregistrées';
         setTimeout(() => { if (feedback) feedback.textContent = ''; }, 3000);
       }
     });
@@ -3037,16 +3035,16 @@
       }
 
       if (dispatchOk) {
-        showToast('Bot WhatsApp lancé avec succès !', 'success');
+        showToast('Diffusion WhatsApp initiée avec succès', 'success');
         if (statusBox) {
           statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-emerald-100/90 border-emerald-300 text-emerald-950 block space-y-1';
           statusBox.innerHTML = `
             <div class="font-bold flex items-center gap-1.5 text-emerald-900">
               <svg class="w-4 h-4 text-emerald-700 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-              <span>✅ Bot déclenché avec succès !</span>
+              <span>Envoi en cours</span>
             </div>
             <p class="text-[11px] text-emerald-800 leading-relaxed">
-              Le robot génère l'image haute définition des deux équipes et l'envoie dans votre groupe WhatsApp. L'image arrivera dans environ 45 secondes.
+              La capture haute définition des deux équipes est en cours de transmission dans le groupe WhatsApp.
             </p>
           `;
         }
@@ -3056,15 +3054,15 @@
       }
     } catch (err) {
       console.error('Erreur déclenchement bot:', err);
-      showToast('Erreur lors du déclenchement du bot', 'error');
+      showToast('Erreur lors du déclenchement', 'error');
       if (statusBox) {
         statusBox.className = 'text-xs font-semibold p-3 rounded-lg border bg-rose-50 border-rose-300 text-rose-900 block';
         if (err.message && (err.message.includes('Bad credentials') || err.message.includes('401'))) {
-          statusBox.textContent = '❌ Clé GitHub invalide ou expirée. Veuillez vérifier ou renouveler votre clé dans les paramètres ci-dessous.';
+          statusBox.textContent = 'Clé GitHub invalide ou expirée. Veuillez vérifier ou renouveler votre clé dans les paramètres ci-dessous.';
           const panel = document.getElementById('admin-github-token-setup');
           if (panel) panel.classList.remove('hidden');
         } else {
-          statusBox.textContent = `❌ Échec du lancement : ${err.message}`;
+          statusBox.textContent = `Échec de l'envoi : ${err.message}`;
         }
       }
     } finally {
