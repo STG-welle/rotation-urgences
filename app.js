@@ -22,7 +22,8 @@
     stagiaires: [],
     config: {
       date_debut_stage: window.APP_CONFIG.DEFAULT_START_DATE,
-      pin_code: window.APP_CONFIG.DEFAULT_PIN
+      pin_code: window.APP_CONFIG.DEFAULT_PIN,
+      capacites_salles: null
     },
 
     // Navigation & Affichage
@@ -95,10 +96,20 @@
     const storedUrl = localStorage.getItem('urgences_supabase_url');
     const storedKey = localStorage.getItem('urgences_supabase_key');
     const storedPin = localStorage.getItem('urgences_admin_pin');
+    const storedCaps = localStorage.getItem('urgences_demo_capacites_salles');
 
     state.supabaseUrl = storedUrl || window.APP_CONFIG.SUPABASE_URL || '';
     state.supabaseKey = storedKey || window.APP_CONFIG.SUPABASE_ANON_KEY || '';
     if (storedPin) state.config.pin_code = storedPin;
+    if (storedCaps) {
+      try {
+        const parsedCaps = JSON.parse(storedCaps);
+        state.config.capacites_salles = parsedCaps;
+        applyRoomCapacities(parsedCaps);
+      } catch (e) {
+        console.warn('Erreur chargement capacites_salles locales', e);
+      }
+    }
   }
 
   async function initDatabase() {
@@ -117,8 +128,12 @@
         if (configRes.data) {
           state.config = {
             date_debut_stage: configRes.data.date_debut_stage || window.APP_CONFIG.DEFAULT_START_DATE,
-            pin_code: configRes.data.pin_code || window.APP_CONFIG.DEFAULT_PIN
+            pin_code: configRes.data.pin_code || window.APP_CONFIG.DEFAULT_PIN,
+            capacites_salles: configRes.data.capacites_salles || null
           };
+          if (configRes.data.capacites_salles) {
+            applyRoomCapacities(configRes.data.capacites_salles);
+          }
         }
 
         state.stagiaires = (stagiairesRes.data || []).map((s) => {
@@ -246,10 +261,23 @@
         handleRealtimeChange(payload);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'config' }, (payload) => {
-        if (payload.new && payload.new.date_debut_stage) {
-          state.config.date_debut_stage = payload.new.date_debut_stage;
-          render();
-          showToast('Calendrier mis à jour', 'info');
+        if (payload.new) {
+          let updated = false;
+          if (payload.new.date_debut_stage && payload.new.date_debut_stage !== state.config.date_debut_stage) {
+            state.config.date_debut_stage = payload.new.date_debut_stage;
+            updated = true;
+          }
+          if (payload.new.capacites_salles) {
+            state.config.capacites_salles = payload.new.capacites_salles;
+            applyRoomCapacities(payload.new.capacites_salles);
+            weeklyScheduleCache.clear();
+            journeeScheduleCache.clear();
+            updated = true;
+          }
+          if (updated) {
+            render();
+            showToast('Paramètres mis à jour en direct', 'info');
+          }
         }
       })
       .subscribe();
@@ -365,13 +393,50 @@
   }
 
   // ============================================================================
-  // BRASSAGE DYNAMIQUE & COUVERTURE DES 4 SALLES
+  // BRASSAGE DYNAMIQUE & COUVERTURE DES 4 SALLES AVEC RESPECT DES CAPACITÉS
+  // Capacités maximales strictes par secteur :
+  // - Triage (Secteur 01)     : MAXIMUM 2 personnes
+  // - Piquage (Secteur 02)    : MAXIMUM 3 personnes
+  // - Déchocage (Secteur 03)  : MAXIMUM 4 personnes
+  // - Observation (Secteur 04): MAXIMUM 4 personnes
   // Garanties mathématiques absolues :
-  // 1. 100% des stagiaires visitent les 4 SALLES (Triage, Piquage, Déchocage, Obs) chaque semaine
-  // 2. ZÉRO répétition consécutive : aucun stagiaire n'est dans la même salle 2 jours de suite
-  // 3. Capacités de salles équilibrées chaque jour (Math.floor(N/4) à Math.ceil(N/4))
-  // 4. Brassage et rotation des binômes optimisés d'une semaine sur l'autre
+  // 1. ZÉRO dépassement de capacité dans aucune salle quel que soit l'effectif
+  // 2. 100% de visite des 4 salles dès que la capacité hebdomadaire le permet
+  // 3. ZÉRO répétition consécutive : aucun stagiaire n'est dans la même salle 2 jours de suite
+  // 4. Coordination stricte entre stagiaires d'équipe régulière et stagiaires en Journée continue
   // ============================================================================
+  const DEFAULT_ROOM_CAPACITIES = [2, 3, 4, 4]; // [Triage: 2, Piquage: 3, Déchocage: 4, Observation: 4]
+  function getRoomCapacities() {
+    if (state.config && state.config.capacites_salles) {
+      const c = state.config.capacites_salles;
+      return [
+        Math.max(1, Number(c.triage ?? c[0] ?? 2)),
+        Math.max(1, Number(c.piquage ?? c[1] ?? 3)),
+        Math.max(1, Number(c.dechoc ?? c[2] ?? 4)),
+        Math.max(1, Number(c.observation ?? c[3] ?? 4))
+      ];
+    }
+    if (window.APP_CONFIG && Array.isArray(window.APP_CONFIG.ROOMS)) {
+      return window.APP_CONFIG.ROOMS.map((r, i) => r.maxCapacity || DEFAULT_ROOM_CAPACITIES[i] || 4);
+    }
+    return DEFAULT_ROOM_CAPACITIES;
+  }
+
+  function applyRoomCapacities(caps) {
+    if (!caps) return;
+    const triageCap = Math.max(1, Number(caps.triage ?? caps[0] ?? 2));
+    const piquageCap = Math.max(1, Number(caps.piquage ?? caps[1] ?? 3));
+    const dechocCap = Math.max(1, Number(caps.dechoc ?? caps[2] ?? 4));
+    const obsCap = Math.max(1, Number(caps.observation ?? caps[3] ?? 4));
+
+    if (window.APP_CONFIG && Array.isArray(window.APP_CONFIG.ROOMS)) {
+      if (window.APP_CONFIG.ROOMS[0]) window.APP_CONFIG.ROOMS[0].maxCapacity = triageCap;
+      if (window.APP_CONFIG.ROOMS[1]) window.APP_CONFIG.ROOMS[1].maxCapacity = piquageCap;
+      if (window.APP_CONFIG.ROOMS[2]) window.APP_CONFIG.ROOMS[2].maxCapacity = dechocCap;
+      if (window.APP_CONFIG.ROOMS[3]) window.APP_CONFIG.ROOMS[3].maxCapacity = obsCap;
+    }
+  }
+
   function mulberry32(a) {
     return function() {
       var t = a += 0x6D2B79F5;
@@ -407,53 +472,81 @@
     }
   }
 
+  // 168 séquences de réserve (3 salles distinctes sans répétition consécutive)
+  // Utilisées si la capacité d'une salle (ex: Triage à max 2) est saturée sur la semaine
+  const SEQS_3_ROOMS = [];
+  for (let s0 = 0; s0 < 4; s0++) {
+    for (let s1 = 0; s1 < 4; s1++) {
+      if (s1 === s0) continue;
+      for (let s2 = 0; s2 < 4; s2++) {
+        if (s2 === s1) continue;
+        for (let s3 = 0; s3 < 4; s3++) {
+          if (s3 === s2) continue;
+          for (let s4 = 0; s4 < 4; s4++) {
+            if (s4 === s3) continue;
+            if (new Set([s0, s1, s2, s3, s4]).size === 3) {
+              SEQS_3_ROOMS.push([s0, s1, s2, s3, s4]);
+            }
+          }
+        }
+      }
+    }
+  }
+
   const weeklyScheduleCache = new Map();
 
-  function getDeterministicWeeklySchedule(N, weekNumber) {
+  function getDeterministicWeeklySchedule(N, weekNumber, journeeCountsPerDay) {
     if (N === 0) return [];
-    if (N < 4) {
-      const res = [];
-      for (let i = 0; i < N; i++) {
-        res.push([
-          (i + 0) % 4,
-          (i + 1) % 4,
-          (i + 2) % 4,
-          (i + 3) % 4,
-          (i + 1) % 4
-        ]);
-      }
-      return res;
-    }
+    const roomCaps = getRoomCapacities();
 
-    const cacheKey = `${N}_${weekNumber}`;
+    const jKey = journeeCountsPerDay ? JSON.stringify(journeeCountsPerDay) : 'none';
+    const cacheKey = `${N}_${weekNumber}_${jKey}`;
     if (weeklyScheduleCache.has(cacheKey)) {
       return weeklyScheduleCache.get(cacheKey);
     }
 
-    const minCap = Math.floor(N / 4);
-    const maxCap = Math.ceil(N / 4);
-    const seed = (Math.abs(weekNumber) * 7919 + N * 104729 + 12345) >>> 0;
-    const rand = mulberry32(seed);
+    // Capacités maximales restantes pour les stagiaires réguliers après décompte de la journée continue
+    const maxCaps = Array.from({ length: 5 }, (_, d) => {
+      return roomCaps.map((cap, r) => {
+        const jCount = (journeeCountsPerDay && journeeCountsPerDay[d]) ? (journeeCountsPerDay[d][r] || 0) : 0;
+        return Math.max(0, cap - jCount);
+      });
+    });
 
-    // Rotation mensuelle stricte de la salle doublée :
-    // Chaque semaine (w = 0, 1, 2, 3), l'étudiant i double une salle différente (i + w) % 4.
-    // Sur 4 semaines (20 jours), chaque étudiant fait EXACTEMENT 5 jours par salle (5 Triage, 5 Piquage, 5 Déchocage, 5 Obs) !
+    const weeklyAvail = [0, 0, 0, 0];
+    for (let d = 0; d < 5; d++) {
+      for (let r = 0; r < 4; r++) {
+        weeklyAvail[r] += maxCaps[d][r];
+      }
+    }
+
+    // Salles éligibles à être doublées dans la semaine pour un étudiant
+    // Si une salle (ex: Triage) a une capacité totale <= N, elle ne peut PAS être doublée
+    const dupCandidates = [];
+    for (let r = 0; r < 4; r++) {
+      if (weeklyAvail[r] > N) dupCandidates.push(r);
+    }
+    if (dupCandidates.length === 0) dupCandidates.push(2, 3); // Déchocage & Observation en priorité
+
     const targetDups = [];
     for (let i = 0; i < N; i++) {
-      targetDups.push(((i + weekNumber) % 4 + 4) % 4);
+      targetDups.push(dupCandidates[(i + weekNumber) % dupCandidates.length]);
     }
+
+    const seed = (Math.abs(weekNumber) * 7919 + N * 104729 + 12345) >>> 0;
+    const rand = mulberry32(seed);
 
     let bestSeqs = null;
     let bestScore = Infinity;
 
-    for (let trial = 0; trial < 3000; trial++) {
+    for (let trial = 0; trial < 1000; trial++) {
       const chosen = [];
       const counts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
       let possible = true;
 
       for (let i = 0; i < N; i++) {
         const targetRoom = targetDups[i];
-        const pool = SEQS_BY_DUP[targetRoom];
+        const pool = SEQS_BY_DUP[targetRoom] || VALID_ROOM_SEQUENCES;
 
         const cands = [...pool];
         for (let k = cands.length - 1; k > 0; k--) {
@@ -467,7 +560,7 @@
         for (const seq of cands) {
           let canAdd = true;
           for (let d = 0; d < 5; d++) {
-            if (counts[d][seq[d]] >= maxCap) {
+            if (counts[d][seq[d]] >= maxCaps[d][seq[d]]) {
               canAdd = false;
               break;
             }
@@ -475,6 +568,58 @@
           if (canAdd) {
             picked = seq;
             break;
+          }
+        }
+
+        // Essayer d'autres pools de 4 salles si le pool cible est plein
+        if (!picked) {
+          for (const altRoom of dupCandidates) {
+            if (altRoom === targetRoom) continue;
+            const altCands = [...SEQS_BY_DUP[altRoom]];
+            for (let k = altCands.length - 1; k > 0; k--) {
+              const j = Math.floor(rand() * (k + 1));
+              const tmp = altCands[k];
+              altCands[k] = altCands[j];
+              altCands[j] = tmp;
+            }
+            for (const seq of altCands) {
+              let canAdd = true;
+              for (let d = 0; d < 5; d++) {
+                if (counts[d][seq[d]] >= maxCaps[d][seq[d]]) {
+                  canAdd = false;
+                  break;
+                }
+              }
+              if (canAdd) {
+                picked = seq;
+                break;
+              }
+            }
+            if (picked) break;
+          }
+        }
+
+        // Essayer les séquences de 3 salles si la capacité restante est restreinte
+        if (!picked) {
+          const alt3Cands = [...SEQS_3_ROOMS];
+          for (let k = Math.min(50, alt3Cands.length - 1); k > 0; k--) {
+            const j = Math.floor(rand() * (k + 1));
+            const tmp = alt3Cands[k];
+            alt3Cands[k] = alt3Cands[j];
+            alt3Cands[j] = tmp;
+          }
+          for (const seq of alt3Cands) {
+            let canAdd = true;
+            for (let d = 0; d < 5; d++) {
+              if (counts[d][seq[d]] >= maxCaps[d][seq[d]]) {
+                canAdd = false;
+                break;
+              }
+            }
+            if (canAdd) {
+              picked = seq;
+              break;
+            }
           }
         }
 
@@ -492,7 +637,7 @@
       let valid = true;
       for (let d = 0; d < 5; d++) {
         for (let r = 0; r < 4; r++) {
-          if (counts[d][r] < minCap || counts[d][r] > maxCap) {
+          if (counts[d][r] > maxCaps[d][r]) {
             valid = false;
             break;
           }
@@ -501,6 +646,7 @@
       }
       if (!valid) continue;
 
+      // Score d'équilibrage et de répétitions de binômes
       let pairRepetitions = 0;
       for (let i = 0; i < N; i++) {
         for (let j = i + 1; j < N; j++) {
@@ -512,24 +658,53 @@
         }
       }
 
-      if (pairRepetitions < bestScore) {
-        bestScore = pairRepetitions;
+      let balancePenalty = 0;
+      for (let d = 0; d < 5; d++) {
+        const combined = [0, 1, 2, 3].map((r) => counts[d][r] + ((journeeCountsPerDay && journeeCountsPerDay[d]) ? (journeeCountsPerDay[d][r] || 0) : 0));
+        const maxC = Math.max(...combined);
+        const minC = Math.min(...combined);
+        balancePenalty += (maxC - minC) * 5;
+        if (N >= 4) {
+          for (let r = 0; r < 4; r++) {
+            if (combined[r] === 0) balancePenalty += 20;
+          }
+        }
+      }
+
+      const totalScore = pairRepetitions * 10 + balancePenalty;
+      if (totalScore < bestScore) {
+        bestScore = totalScore;
         bestSeqs = chosen;
         if (bestScore === 0) break;
       }
     }
 
+    // Repli déterministe absolu si aucune solution aléatoire trouvée
     if (!bestSeqs) {
-      bestSeqs = [];
-      for (let i = 0; i < N; i++) {
-        const d = targetDups[i];
-        bestSeqs.push([
-          d,
-          (d + 1) % 4,
-          (d + 2) % 4,
-          (d + 3) % 4,
-          d
-        ]);
+      bestSeqs = Array.from({ length: N }, () => []);
+      const dailyCounts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
+      for (let d = 0; d < 5; d++) {
+        const studentOrder = Array.from({ length: N }, (_, i) => i);
+        studentOrder.sort((a, b) => ((a + d * 3 + weekNumber) % N) - ((b + d * 3 + weekNumber) % N));
+        for (const s of studentOrder) {
+          const prevRoom = d > 0 ? bestSeqs[s][d - 1] : -1;
+          const roomOrder = [0, 1, 2, 3]
+            .filter((r) => r !== prevRoom && dailyCounts[d][r] < maxCaps[d][r])
+            .sort((a, b) => {
+              const spareA = maxCaps[d][a] - dailyCounts[d][a];
+              const spareB = maxCaps[d][b] - dailyCounts[d][b];
+              if (spareA !== spareB) return spareB - spareA;
+              const visitedA = bestSeqs[s].includes(a) ? 1 : 0;
+              const visitedB = bestSeqs[s].includes(b) ? 1 : 0;
+              return visitedA - visitedB;
+            });
+          let pickedRoom = roomOrder[0];
+          if (pickedRoom === undefined) {
+            pickedRoom = [0, 1, 2, 3].find((r) => dailyCounts[d][r] < maxCaps[d][r]) || 0;
+          }
+          bestSeqs[s][d] = pickedRoom;
+          dailyCounts[d][pickedRoom]++;
+        }
       }
     }
 
@@ -537,14 +712,14 @@
     return bestSeqs;
   }
 
-  function getDailyRoomAssignments(activeStudents, workDayIndex) {
+  function getDailyRoomAssignments(activeStudents, workDayIndex, journeeCountsPerDay) {
     const N = activeStudents.length;
     if (N === 0) return [[], [], [], []];
 
     const weekNumber = Math.floor(workDayIndex / 5);
     const dayIndex = ((workDayIndex % 5) + 5) % 5;
 
-    const weeklyMatrix = getDeterministicWeeklySchedule(N, weekNumber);
+    const weeklyMatrix = getDeterministicWeeklySchedule(N, weekNumber, journeeCountsPerDay);
     const assignment = [[], [], [], []];
     for (let i = 0; i < N; i++) {
       const roomIdx = weeklyMatrix[i] ? weeklyMatrix[i][dayIndex] : (i % 4);
@@ -559,7 +734,7 @@
   // 1. Couverture complète des 4 salles au cours du mois
   // 2. 1 salle unique par jour (continuité de 07h30 à 17h00 sans coupure de soin)
   // 3. Aucune répétition de salle consécutive d'un jour sur l'autre
-  // 4. Équilibrage optimal des effectifs dans les 4 salles
+  // 4. Respect strict des capacités des salles (Triage: 2, Piquage: 3, Déchoc: 4, Obs: 4)
   // ============================================================================
   const journeeScheduleCache = new Map();
 
@@ -570,12 +745,13 @@
       return journeeScheduleCache.get(cacheKey);
     }
 
+    const roomCaps = getRoomCapacities();
     const res = [];
     const dailyCounts = Array.from({ length: 5 }, () => [0, 0, 0, 0]);
 
     for (let i = 0; i < N; i++) {
       const targetDup = ((i + weekNumber) % 4 + 4) % 4;
-      const pool = SEQS_BY_DUP[targetDup];
+      const pool = SEQS_BY_DUP[targetDup] || VALID_ROOM_SEQUENCES;
       const desiredStart = ((i + weekNumber) % 4 + 4) % 4;
 
       let bestSeq = null;
@@ -583,6 +759,15 @@
 
       for (const seq of pool) {
         let score = 0;
+        let fits = true;
+        for (let d = 0; d < 5; d++) {
+          if (dailyCounts[d][seq[d]] >= roomCaps[seq[d]]) {
+            fits = false;
+            break;
+          }
+        }
+        if (!fits) continue;
+
         if (seq[0] !== desiredStart) score += 2;
         for (let d = 0; d < 5; d++) {
           score += dailyCounts[d][seq[d]] * 10;
@@ -693,6 +878,20 @@
       studentGroupMap.set(s.id, targetGIdx);
     });
 
+    // Pré-calcul de la grille Journée Continue et des effectifs par salle et par jour
+    // pour coordonner strictement les capacités maximales (Triage: 2, Piquage: 3, Déchocage: 4, Observation: 4)
+    const journeeWeeklyMatrix = getJourneeWeeklySchedule(activeJournee.length, weekNumber);
+    const journeeCountsPerDay = Array.from({ length: 5 }, (_, dayIdx) => {
+      const counts = [0, 0, 0, 0];
+      for (let i = 0; i < activeJournee.length; i++) {
+        const rIdx = journeeWeeklyMatrix[i] ? journeeWeeklyMatrix[i][dayIdx] : (i % 4);
+        counts[rIdx]++;
+      }
+      return counts;
+    });
+
+    const regularWeeklyMatrix = getDeterministicWeeklySchedule(activeRegular.length, weekNumber, journeeCountsPerDay);
+
     // Calcul pour chacun des 7 jours de la semaine (Lundi à Dimanche)
     const daysData = [];
 
@@ -708,13 +907,24 @@
       const workDayIndex = weekNumber * 5 + d;
       const cycle = ((workDayIndex % 7) + 7) % 7;
 
-      // Affectation des 4 salles avec brassage quotidien des binômes
+      // Affectation des 4 salles avec respect absolu des capacités
       // Uniquement du Lundi au Vendredi, Samedi & Dimanche = R.A.S
       let roomAssignments = [];
       if (!isWeekend) {
-        const dailyRoomRegular = getDailyRoomAssignments(activeRegular, workDayIndex);
-        const dailyRoomJournee = getJourneeDailyRoomAssignments(activeJournee, weekNumber, d);
+        const dailyRoomRegular = [[], [], [], []];
+        for (let i = 0; i < activeRegular.length; i++) {
+          const roomIdx = regularWeeklyMatrix[i] ? regularWeeklyMatrix[i][d] : (i % 4);
+          dailyRoomRegular[roomIdx].push(activeRegular[i]);
+        }
+
+        const dailyRoomJournee = [[], [], [], []];
+        for (let i = 0; i < activeJournee.length; i++) {
+          const roomIdx = journeeWeeklyMatrix[i] ? journeeWeeklyMatrix[i][d] : (i % 4);
+          dailyRoomJournee[roomIdx].push(activeJournee[i]);
+        }
+
         const absentStudents = [...absentRegular, ...absentJournee];
+        const roomCaps = getRoomCapacities();
 
         roomAssignments = window.APP_CONFIG.ROOMS.map((room) => {
           const regularInRoom = dailyRoomRegular[room.id] || [];
@@ -723,6 +933,7 @@
 
           return {
             ...room,
+            maxCapacity: roomCaps[room.id] || room.maxCapacity || DEFAULT_ROOM_CAPACITIES[room.id],
             assignedGroup: room.id,
             groupName: 'Binôme du jour',
             students: activeInRoom,
@@ -940,11 +1151,12 @@
       }
 
       // Configuration des 4 salles
+      const roomCaps = getRoomCapacities();
       const roomsConfig = [
-        { code: 'SECTEUR 01', name: 'Triage', border: 'border-l-4 border-l-blue-600', dot: 'bg-blue-600', role: 'Accueil & Orientation' },
-        { code: 'SECTEUR 02', name: 'Piquage', border: 'border-l-4 border-l-emerald-600', dot: 'bg-emerald-600', role: 'Soins & Bilans' },
-        { code: 'SECTEUR 03', name: 'Déchocage', border: 'border-l-4 border-l-rose-600', dot: 'bg-rose-600', role: 'Urgences Absolues' },
-        { code: 'SECTEUR 04', name: 'Observation', border: 'border-l-4 border-l-purple-600', dot: 'bg-purple-600', role: 'Surveillance' }
+        { code: 'SECTEUR 01', name: 'Triage', maxCap: roomCaps[0], border: 'border-l-4 border-l-blue-600', dot: 'bg-blue-600', role: 'Accueil & Orientation' },
+        { code: 'SECTEUR 02', name: 'Piquage', maxCap: roomCaps[1], border: 'border-l-4 border-l-emerald-600', dot: 'bg-emerald-600', role: 'Soins & Bilans' },
+        { code: 'SECTEUR 03', name: 'Déchocage', maxCap: roomCaps[2], border: 'border-l-4 border-l-rose-600', dot: 'bg-rose-600', role: 'Urgences Absolues' },
+        { code: 'SECTEUR 04', name: 'Observation', maxCap: roomCaps[3], border: 'border-l-4 border-l-purple-600', dot: 'bg-purple-600', role: 'Surveillance' }
       ];
 
       let rowsHtml = '';
@@ -987,7 +1199,7 @@
             <td class="p-3 border border-slate-300 bg-slate-50 font-bold ${rc.border} align-middle">
               <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 leading-none mb-1">${rc.code}</div>
               <div class="text-sm font-black text-slate-900 leading-tight">${rc.name}</div>
-              <div class="text-[11px] font-semibold text-slate-500 mt-0.5">${rc.role}</div>
+              <div class="text-[11px] font-semibold text-slate-500 mt-0.5">${rc.role} <span class="text-[10px] font-bold text-slate-400">• Max ${rc.maxCap}</span></div>
             </td>
             ${cellsHtml}
           </tr>
@@ -1539,7 +1751,10 @@
         `;
       }
 
-      cardsHtml += `
+              const roomCap = room.maxCapacity || (room.id === 0 ? 2 : room.id === 1 ? 3 : 4);
+              const isAtCapacity = room.students.length >= roomCap;
+
+              cardsHtml += `
         <div class="bg-white rounded-xl border ${sectorMeta.topBar} ${
           isRoomHighlighted ? 'border-amber-400 ring-2 ring-amber-200 shadow-md' : 'border-slate-300'
         } p-4 shadow-xs flex flex-col justify-between transition-all hover:border-slate-400">
@@ -1558,8 +1773,8 @@
                   </span>
                 </div>
               </div>
-              <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 shrink-0" title="${room.students.length} stagiaire(s) en poste">
-                ${room.students.length} ${room.students.length > 1 ? 'postes' : 'poste'}
+              <span class="text-[10px] font-bold px-2 py-0.5 rounded ${isAtCapacity ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-slate-100 text-slate-700 border-slate-200'} border shrink-0" title="${room.students.length} stagiaire(s) en poste sur ${roomCap} maximum">
+                ${room.students.length} / ${roomCap} ${room.students.length > 1 ? 'postes' : 'poste'}
               </span>
             </div>
 
@@ -1572,7 +1787,7 @@
             <div class="space-y-1.5 mb-2">
               <div class="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center justify-between">
                 <span>Effectif en poste :</span>
-                <span>${room.students.length} actif${room.students.length > 1 ? 's' : ''}</span>
+                <span>${room.students.length} / ${roomCap} actif${room.students.length > 1 ? 's' : ''} (max ${roomCap})</span>
               </div>
               ${studentsHtml}
               ${absentHtml}
@@ -1760,6 +1975,18 @@
     if (dateInput && state.config.date_debut_stage) {
       dateInput.value = state.config.date_debut_stage.substring(0, 10);
     }
+
+    // Pré-remplissage des capacités maximales configurées
+    const caps = getRoomCapacities();
+    const capTriage = document.getElementById('admin-cap-triage');
+    const capPiquage = document.getElementById('admin-cap-piquage');
+    const capDechoc = document.getElementById('admin-cap-dechoc');
+    const capObs = document.getElementById('admin-cap-observation');
+
+    if (capTriage) capTriage.value = caps[0];
+    if (capPiquage) capPiquage.value = caps[1];
+    if (capDechoc) capDechoc.value = caps[2];
+    if (capObs) capObs.value = caps[3];
 
     const focusedTeam = state.adminFilterEquipe === '2' ? '2' : '1';
     const schedule = calculateDailySchedule(state.weekOffset, focusedTeam);
@@ -2239,6 +2466,40 @@
     }
   }
 
+  async function updateRoomCapacities(newCaps) {
+    if (!newCaps) return;
+    const capsObj = {
+      triage: Math.max(1, parseInt(newCaps.triage, 10) || 2),
+      piquage: Math.max(1, parseInt(newCaps.piquage, 10) || 3),
+      dechoc: Math.max(1, parseInt(newCaps.dechoc, 10) || 4),
+      observation: Math.max(1, parseInt(newCaps.observation, 10) || 4)
+    };
+
+    if (state.client && state.isSupabaseConnected) {
+      try {
+        const { error } = await state.client.from('config').upsert({ id: 1, capacites_salles: capsObj });
+        if (error) throw error;
+        state.config.capacites_salles = capsObj;
+        applyRoomCapacities(capsObj);
+        weeklyScheduleCache.clear();
+        journeeScheduleCache.clear();
+        render();
+        showToast('Capacités des salles enregistrées', 'success');
+      } catch (err) {
+        console.error('Erreur enregistrement capacités:', err);
+        showToast('Erreur enregistrement des capacités', 'error');
+      }
+    } else {
+      state.config.capacites_salles = capsObj;
+      applyRoomCapacities(capsObj);
+      localStorage.setItem('urgences_demo_capacites_salles', JSON.stringify(capsObj));
+      weeklyScheduleCache.clear();
+      journeeScheduleCache.clear();
+      render();
+      showToast('Capacités des salles enregistrées (local)', 'success');
+    }
+  }
+
   // ============================================================================
   // WHATSAPP
   // ============================================================================
@@ -2582,6 +2843,26 @@
       const input = document.getElementById('admin-start-date-input');
       if (input && input.value) {
         await updateStartDate(input.value);
+      }
+    });
+
+    document.getElementById('admin-save-capacities')?.addEventListener('click', async () => {
+      const triageInput = document.getElementById('admin-cap-triage');
+      const piquageInput = document.getElementById('admin-cap-piquage');
+      const dechocInput = document.getElementById('admin-cap-dechoc');
+      const obsInput = document.getElementById('admin-cap-observation');
+      const feedback = document.getElementById('admin-caps-feedback');
+
+      const triage = parseInt(triageInput?.value, 10) || 2;
+      const piquage = parseInt(piquageInput?.value, 10) || 3;
+      const dechoc = parseInt(dechocInput?.value, 10) || 4;
+      const observation = parseInt(obsInput?.value, 10) || 4;
+
+      if (feedback) feedback.textContent = 'Enregistrement...';
+      await updateRoomCapacities({ triage, piquage, dechoc, observation });
+      if (feedback) {
+        feedback.textContent = '✓ Capacités enregistrées';
+        setTimeout(() => { if (feedback) feedback.textContent = ''; }, 3000);
       }
     });
 

@@ -685,6 +685,89 @@
           </div>
         </div>
 
+        <!-- Capacités Maximales des Salles (Disponibilités) -->
+        <div class="border-t border-slate-200 pt-4">
+          <div class="flex items-center justify-between mb-1">
+            <h4 class="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+              <span>🏥</span> Capacités Maximales des Salles (Disponibilité)
+            </h4>
+            <span class="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+              Paramètres du service
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 mb-3">
+            Définissez le nombre maximum de stagiaires autorisés simultanément par secteur. Les rotations s'ajustent automatiquement pour respecter ces plafonds sans jamais surcharger une salle.
+          </p>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-3">
+            <!-- Triage -->
+            <div class="p-2.5 rounded-xl border border-blue-200 bg-blue-50/60 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 mb-1.5">
+                <span class="text-xs font-black text-blue-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-blue-600 shrink-0"></span> Triage
+                </span>
+                <span class="text-[9px] font-bold text-blue-700 bg-white px-1.5 py-0.2 rounded border border-blue-200">Sec. 01</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="admin-cap-triage" min="1" max="25" value="2" class="w-full bg-white border border-blue-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-blue-950 text-center focus:ring-2 focus:ring-blue-600 focus:outline-none">
+                <span class="text-[10px] font-bold text-blue-900 shrink-0">max</span>
+              </div>
+            </div>
+
+            <!-- Piquage -->
+            <div class="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 mb-1.5">
+                <span class="text-xs font-black text-emerald-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-emerald-600 shrink-0"></span> Piquage
+                </span>
+                <span class="text-[9px] font-bold text-emerald-700 bg-white px-1.5 py-0.2 rounded border border-emerald-200">Sec. 02</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="admin-cap-piquage" min="1" max="25" value="3" class="w-full bg-white border border-emerald-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-emerald-950 text-center focus:ring-2 focus:ring-emerald-600 focus:outline-none">
+                <span class="text-[10px] font-bold text-emerald-900 shrink-0">max</span>
+              </div>
+            </div>
+
+            <!-- Déchocage -->
+            <div class="p-2.5 rounded-xl border border-rose-200 bg-rose-50/60 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 mb-1.5">
+                <span class="text-xs font-black text-rose-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-rose-600 shrink-0"></span> Déchocage
+                </span>
+                <span class="text-[9px] font-bold text-rose-700 bg-white px-1.5 py-0.2 rounded border border-rose-200">Sec. 03</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="admin-cap-dechoc" min="1" max="25" value="4" class="w-full bg-white border border-rose-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-rose-950 text-center focus:ring-2 focus:ring-rose-600 focus:outline-none">
+                <span class="text-[10px] font-bold text-rose-900 shrink-0">max</span>
+              </div>
+            </div>
+
+            <!-- Observation -->
+            <div class="p-2.5 rounded-xl border border-purple-200 bg-purple-50/60 flex flex-col justify-between">
+              <div class="flex items-center justify-between gap-1 mb-1.5">
+                <span class="text-xs font-black text-purple-950 flex items-center gap-1">
+                  <span class="w-2 h-2 rounded-full bg-purple-600 shrink-0"></span> Observation
+                </span>
+                <span class="text-[9px] font-bold text-purple-700 bg-white px-1.5 py-0.2 rounded border border-purple-200">Sec. 04</span>
+              </div>
+              <div class="flex items-center gap-1.5">
+                <input type="number" id="admin-cap-observation" min="1" max="25" value="4" class="w-full bg-white border border-purple-300 rounded-lg px-2.5 py-1.5 text-xs font-black text-purple-950 text-center focus:ring-2 focus:ring-purple-600 focus:outline-none">
+                <span class="text-[10px] font-bold text-purple-900 shrink-0">max</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <span id="admin-caps-feedback" class="text-[11px] font-semibold text-slate-500"></span>
+            <button type="button" id="admin-save-capacities" class="px-3.5 py-1.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold rounded-lg transition cursor-pointer flex items-center gap-1.5 shadow-2xs">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+              <span>Enregistrer les capacités</span>
+            </button>
+          </div>
+        </div>
+
         <!-- Diffusion manuelle immédiate sur WhatsApp via Bot Capture -->
         <div class="border-t border-slate-200 pt-4 bg-emerald-50/70 p-4 rounded-xl border border-emerald-200 space-y-3">
           <div class="flex items-center gap-2.5">
